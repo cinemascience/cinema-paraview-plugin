@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ServerManagerConfiguration>
+    <ProxyGroup name="filters">
+        <SourceProxy name="pcImageCompositing" class="pcImageCompositing" label="pcImageCompositing">
+            <Documentation
+            long_help="pcImageCompositing."
+            short_help="pcImageCompositing">
+                Image Compositing
+            </Documentation>
+
+            <InputProperty name="Input" command="SetInputConnection">
+                <ProxyGroupDomain name="groups">
+                    <Group name="sources" />
+                    <Group name="filters" />
+                </ProxyGroupDomain>
+                <DataTypeDomain name="input_type">
+                    <DataType value="vtkMultiBlockDataSet" />
+                </DataTypeDomain>
+                <Documentation>vtkMultiBlockDataSet.</Documentation>
+            </InputProperty>
+
+            <Hints>
+                <RepresentationType view="RenderView" type="Surface"/>
+                <ShowInMenu category="PyCinema" />
+            </Hints>
+        </SourceProxy>
+    </ProxyGroup>
+</ServerManagerConfiguration>

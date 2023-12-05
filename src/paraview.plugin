@@ -1,0 +1,7 @@
+NAME
+  PyCinema
+DESCRIPTION
+  PyCinema description
+REQUIRES_MODULES
+  VTK::CommonCore
+  VTK::FiltersCore

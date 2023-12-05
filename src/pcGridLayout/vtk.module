@@ -1,0 +1,7 @@
+NAME
+  pcGridLayout
+DEPENDS
+  pcAlgorithm
+  VTK::FiltersCore
+PRIVATE_DEPENDS
+  VTK::CommonCore
