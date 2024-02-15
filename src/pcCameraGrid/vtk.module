@@ -2,7 +2,8 @@ NAME
   pcCameraGrid
 DEPENDS
   pcAlgorithm
-  VTK::FiltersCore
+  VTK::FiltersGeneral
+  VTK::FiltersSources
   VTK::ParallelCore
 PRIVATE_DEPENDS
   VTK::CommonCore

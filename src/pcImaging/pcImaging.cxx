@@ -15,7 +15,8 @@
 #include <vtkCellData.h>
 #include <vtkImageData.h>
 
-#include <embree4/rtcore.h>
+#include <embree3/rtcore.h>
+
 #include <omp.h>
 
 vtkStandardNewMacro(pcImaging);
@@ -105,8 +106,13 @@ int deallocateScene(RTCDevice &device, RTCScene &scene) {
 };
 
 int initializeDevice(RTCDevice &device) {
-  device = rtcNewDevice(NULL);
-  if(!device) return 0;
+  // device = rtcNewDevice(NULL);
+  device = rtcNewDevice("hugepages=1,threads=1");
+  if(!device){
+    printf("error %s\n", std::to_string(rtcGetDeviceError(nullptr)));
+    return 0;
+  }
+
   auto errorFunction
     = [](void *userPtr, enum RTCError error, const char *str) {
         printf("error %d: %s\n", error, str);
@@ -141,8 +147,13 @@ int renderImage(
   const int resX = resolution[0];
   const int resY = resolution[1];
 
-  struct RTCRayQueryContext context;
-  rtcInitRayQueryContext(&context);
+  // embree 3
+  struct RTCIntersectContext context;
+  rtcInitIntersectContext(&context);
+
+  // embree 4
+  // struct RTCRayQueryContext context;
+  // rtcInitRayQueryContext(&context);
 
   const auto normalize = [](float out[3], const float in[3]) {
     const float temp = sqrt(in[0] * in[0] + in[1] * in[1] + in[2] * in[2]);
@@ -210,7 +221,6 @@ int renderImage(
       rayhit.ray.org_x = camPosCorner[0] + u * camRight[0] + v * camUpTrue[0];
       rayhit.ray.org_y = camPosCorner[1] + u * camRight[1] + v * camUpTrue[1];
       rayhit.ray.org_z = camPosCorner[2] + u * camRight[2] + v * camUpTrue[2];
-
       // std::cout<<"("<<rayhit.ray.org_x<<","<<rayhit.ray.org_y<<","<<rayhit.ray.org_z<<")"<<std::endl;
 
       // set dir
@@ -226,7 +236,12 @@ int renderImage(
       rayhit.ray.flags = 0;
       rayhit.hit.geomID = RTC_INVALID_GEOMETRY_ID;
       rayhit.hit.instID[0] = RTC_INVALID_GEOMETRY_ID;
-      rtcIntersect1(scene, &rayhit);
+
+      // embree 3
+      rtcIntersect1(scene, &context, &rayhit);
+
+      // embree 4
+      // rtcIntersect1(scene, &rayhit);
 
       // write depth
       const bool hitPrimitive = rayhit.hit.geomID != RTC_INVALID_GEOMETRY_ID;
