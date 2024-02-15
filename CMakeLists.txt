@@ -3,7 +3,7 @@ project(PyCinema)
 
 find_package(ParaView REQUIRED)
 
-find_package(EMBREE 3.13 REQUIRED)
+find_package(embree 3.13 REQUIRED)
 find_package(OpenMP)
 
 option(BUILD_SHARED_LIBS "Build shared libraries" ON)
