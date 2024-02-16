@@ -109,7 +109,7 @@ int initializeDevice(RTCDevice &device) {
   // device = rtcNewDevice(NULL);
   device = rtcNewDevice("hugepages=1,threads=1");
   if(!device){
-    printf("error %s\n", std::to_string(rtcGetDeviceError(nullptr)));
+    printf("error %s\n", std::to_string(rtcGetDeviceError(nullptr)).c_str());
     return 0;
   }
 
