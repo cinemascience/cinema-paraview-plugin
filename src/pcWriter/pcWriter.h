@@ -26,8 +26,8 @@ public:
   vtkSetMacro(CompressionLevel, const int);
   vtkGetMacro(CompressionLevel, int);
 
-  int CreateDataCSV() const;
-  int DeleteDatabase() const;
+  //int CreateDataCSV() const;
+  //int DeleteDatabase() const;
 
 protected:
   pcWriter();
