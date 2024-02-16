@@ -17,7 +17,9 @@
 
 #include <embree3/rtcore.h>
 
+#ifdef _OPENMP
 #include <omp.h>
+#endif
 
 vtkStandardNewMacro(pcImaging);
 
@@ -524,7 +526,9 @@ int pcImaging::RequestData(vtkInformation *request,
     outputCollection->SetBlock(c, image);
   }
 
+#ifdef _OPENMP
   #pragma omp parallel for
+#endif
   for(int c=0; c<nCameras; c++){
     auto image = static_cast<vtkImageData*>(outputCollection->GetBlock(c));
 
