@@ -11,6 +11,7 @@
 #include <vtkDataArray.h>
 
 #include <cmath>
+#include <limits>
 
 vtkStandardNewMacro(pcImageCompositing);
 
