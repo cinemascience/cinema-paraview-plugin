@@ -37,7 +37,7 @@
 
       <Hints>
         <RepresentationType view="RenderView" type="Wireframe" />
-        <ShowInMenu category="PyCinema" />
+        <ShowInMenu category="CinemaExport" />
       </Hints>
 
     </SourceProxy>

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(PyCinema)
+project(CinemaExport)
 
 find_package(ParaView REQUIRED)
 

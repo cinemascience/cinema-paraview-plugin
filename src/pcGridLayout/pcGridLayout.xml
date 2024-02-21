@@ -59,7 +59,7 @@
 
             <Hints>
                 <RepresentationType view="RenderView" type="Surface"/>
-                <ShowInMenu category="PyCinema" />
+                <ShowInMenu category="CinemaExport" />
             </Hints>
         </SourceProxy>
     </ProxyGroup>

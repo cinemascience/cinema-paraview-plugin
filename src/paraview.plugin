@@ -1,7 +1,7 @@
 NAME
-  PyCinema
+  CinemaExport
 DESCRIPTION
-  PyCinema description
+  CinemaExport description
 REQUIRES_MODULES
   VTK::CommonCore
   VTK::FiltersCore
