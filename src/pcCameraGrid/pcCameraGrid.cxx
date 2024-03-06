@@ -15,6 +15,7 @@
 #include <vtkAbstractTransform.h>
 #include <vtkPointData.h>
 #include <vtkFloatArray.h>
+#include <vtkMath.h>
 #include <cmath>
 
 vtkStandardNewMacro(pcCameraGrid);
@@ -173,13 +174,14 @@ int pcCameraGrid::RequestData(vtkInformation *request,
       this->NearFar[1]==0.0 ? (float)diameter : (float)this->NearFar[1]
     };
 
+    const double kPi = vtkMath::Pi();
     {
       const auto coords = static_cast<float *>(sphereSource->GetOutput()->GetPoints()->GetData()->GetVoidPointer(0));
       for(size_t i=0; i<nPoints; i++){
         const auto coords_ = &(coords[i*3]);
 
-        phi[i] = coords_[2]<-0.999999 ? -90 : coords_[2]>0.999999 ? 90 : (180.0-acos(coords_[2])/M_PI*180.0)-90.0;
-        theta[i] = std::fmod(atan2(coords_[0],coords_[1])*180.0/M_PI+180.0, 360.0);
+        phi[i] = coords_[2]<-0.999999 ? -90 : coords_[2]>0.999999 ? 90 : (180.0-acos(coords_[2])/kPi*180.0)-90.0;
+        theta[i] = std::fmod(atan2(coords_[0],coords_[1])*180.0/kPi+180.0, 360.0);
         camHeight[i] = camHeight_;
         camNearFar[i*2+0] = camNearFar_[0];
         camNearFar[i*2+1] = camNearFar_[1];

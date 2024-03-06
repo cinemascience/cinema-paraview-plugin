@@ -1,10 +1,10 @@
 set(table_of_contents
 "<toc>
-  <section title=\"PyCinema Plugin\" ref=\"index.html\">
+  <section title=\"CinemaExport Plugin\" ref=\"index.html\">
   </section>
 </toc>")
 
-paraview_add_plugin(PyCinema
+paraview_add_plugin(CinemaExport
   REQUIRED_ON_CLIENT
   REQUIRED_ON_SERVER
   VERSION "1.0"

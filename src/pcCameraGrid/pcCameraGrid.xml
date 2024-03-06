@@ -127,7 +127,7 @@
       <Hints>
         <RepresentationType view="RenderView" type="Wireframe" />
         <Visibility replace_input="0" />
-        <ShowInMenu category="PyCinema" />
+        <ShowInMenu category="CinemaExport" />
       </Hints>
 
     </SourceProxy>

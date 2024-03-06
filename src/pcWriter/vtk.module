@@ -5,4 +5,5 @@ DEPENDS
   VTK::FiltersCore
 PRIVATE_DEPENDS
   VTK::CommonCore
+  VTK::CommonSystem
   VTK::hdf5

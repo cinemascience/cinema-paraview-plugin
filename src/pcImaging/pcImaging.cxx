@@ -17,7 +17,9 @@
 
 #include <embree3/rtcore.h>
 
+#ifdef _OPENMP
 #include <omp.h>
+#endif
 
 vtkStandardNewMacro(pcImaging);
 
@@ -109,7 +111,7 @@ int initializeDevice(RTCDevice &device) {
   // device = rtcNewDevice(NULL);
   device = rtcNewDevice("hugepages=1,threads=1");
   if(!device){
-    printf("error %s\n", std::to_string(rtcGetDeviceError(nullptr)));
+    printf("error %s\n", std::to_string(rtcGetDeviceError(nullptr)).c_str());
     return 0;
   }
 
@@ -524,7 +526,9 @@ int pcImaging::RequestData(vtkInformation *request,
     outputCollection->SetBlock(c, image);
   }
 
+#ifdef _OPENMP
   #pragma omp parallel for
+#endif
   for(int c=0; c<nCameras; c++){
     auto image = static_cast<vtkImageData*>(outputCollection->GetBlock(c));
 

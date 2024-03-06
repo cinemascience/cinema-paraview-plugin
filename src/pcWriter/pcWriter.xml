@@ -50,7 +50,7 @@
       </Property>
 
       <Hints>
-        <ShowInMenu category="PyCinema" />
+        <ShowInMenu category="CinemaExport" />
       </Hints>
 
     </SourceProxy>
