@@ -1,0 +1,7 @@
+NAME
+  CinemaImaging
+DEPENDS
+  CinemaAlgorithm
+  VTK::FiltersCore
+PRIVATE_DEPENDS
+  VTK::CommonCore

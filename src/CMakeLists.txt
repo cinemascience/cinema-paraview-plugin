@@ -1,6 +1,6 @@
 set(table_of_contents
 "<toc>
-  <section title=\"CinemaExport Plugin\" ref=\"index.html\">
+  <section title=\"CinemaExporter Plugin\" ref=\"index.html\">
   </section>
 </toc>")
 
@@ -15,14 +15,14 @@ paraview_add_plugin(CinemaExport
     "js/*.js"
     "style/style.css"
   DOCUMENTATION_TOC "${table_of_contents}"
-  MODULES pcAlgorithm pcImaging pcImageCompositing pcCameraGrid pcGridLayout pcWriter
+  MODULES CinemaAlgorithm CinemaImaging CinemaImageCompositing CinemaCameraGrid CinemaGridLayout CinemaWriter
   MODULE_FILES
-    "${CMAKE_CURRENT_SOURCE_DIR}/pcAlgorithm/vtk.module"
-    "${CMAKE_CURRENT_SOURCE_DIR}/pcImaging/vtk.module"
-    "${CMAKE_CURRENT_SOURCE_DIR}/pcImageCompositing/vtk.module"
-    "${CMAKE_CURRENT_SOURCE_DIR}/pcCameraGrid/vtk.module"
-    "${CMAKE_CURRENT_SOURCE_DIR}/pcGridLayout/vtk.module"
-    "${CMAKE_CURRENT_SOURCE_DIR}/pcWriter/vtk.module"
+    "${CMAKE_CURRENT_SOURCE_DIR}/CinemaAlgorithm/vtk.module"
+    "${CMAKE_CURRENT_SOURCE_DIR}/CinemaImaging/vtk.module"
+    "${CMAKE_CURRENT_SOURCE_DIR}/CinemaImageCompositing/vtk.module"
+    "${CMAKE_CURRENT_SOURCE_DIR}/CinemaCameraGrid/vtk.module"
+    "${CMAKE_CURRENT_SOURCE_DIR}/CinemaGridLayout/vtk.module"
+    "${CMAKE_CURRENT_SOURCE_DIR}/CinemaWriter/vtk.module"
 )
 
 option(BUILD_TESTING "Build Plugin Testing" OFF)

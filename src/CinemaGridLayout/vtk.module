@@ -1,0 +1,7 @@
+NAME
+  CinemaGridLayout
+DEPENDS
+  CinemaAlgorithm
+  VTK::FiltersCore
+PRIVATE_DEPENDS
+  VTK::CommonCore

@@ -1,5 +1,0 @@
-NAME
-  pcImageCompositing
-DEPENDS
-  pcAlgorithm
-  VTK::ParallelCore

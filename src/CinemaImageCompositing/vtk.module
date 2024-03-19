@@ -1,0 +1,5 @@
+NAME
+  CinemaImageCompositing
+DEPENDS
+  CinemaAlgorithm
+  VTK::ParallelCore

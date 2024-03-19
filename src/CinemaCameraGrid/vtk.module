@@ -1,0 +1,9 @@
+NAME
+  CinemaCameraGrid
+DEPENDS
+  CinemaAlgorithm
+  VTK::FiltersGeneral
+  VTK::FiltersSources
+  VTK::ParallelCore
+PRIVATE_DEPENDS
+  VTK::CommonCore

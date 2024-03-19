@@ -1,0 +1,60 @@
+<ServerManagerConfiguration>
+  <ProxyGroup name="filters">
+    <SourceProxy name="CinemaWriter" class="CinemaWriter" label="CinemaWriter">
+
+      <Documentation
+        long_help="CinemaWriter long"
+        short_help="CinemaWriter short">
+        CinemaWriter doc text
+      </Documentation>
+
+      <InputProperty
+        name="Input"
+        command="SetInputConnection">
+        <ProxyGroupDomain name="groups">
+          <Group name="sources" />
+          <Group name="filters" />
+        </ProxyGroupDomain>
+        <DataTypeDomain name="input_type">
+          <DataType value="vtkDataObject" />
+        </DataTypeDomain>
+      </InputProperty>
+
+      <StringVectorProperty name="OutputDirectory" command="SetOutputDirectory" number_of_elements="1">
+        <Documentation>Output Directory (must already exist!).</Documentation>
+        <FileListDomain name="files" />
+        <Hints>
+          <UseDirectoryName />
+        </Hints>
+      </StringVectorProperty>
+
+      <IntVectorProperty name="CompressionLevel" command="SetCompressionLevel" number_of_elements="1" default_values="9">
+        <IntRangeDomain name="range" min="0" max="9" />
+        <Documentation>Determines the compression level form 0 (fast + large files) to 9 (slow + small files).</Documentation>
+      </IntVectorProperty>
+
+      <Property name='Debug_Execute'
+        label='Write Images'
+        command='Modified'
+        panel_widget='command_button'>
+        <Documentation>
+          Write all input images to disk in the pycinema hdf5 format.
+        </Documentation>
+      </Property>
+
+      <Property name="DeleteDatabase" command="DeleteDatabase" panel_widget="command_button">
+        <Documentation>Delete the contents of the output directory [WARNING: NO UNDO!]</Documentation>
+      </Property>
+      <Property label="Create data.csv" name="CreateDataCSV" command="CreateDataCSV" panel_widget="command_button">
+        <Documentation>Compute the data.csv file.</Documentation>
+      </Property>
+
+      <Hints>
+        <ShowInMenu category="CinemaExport" />
+        <RepresentationType view="RenderView" type="Outline"/>
+        <Visibility replace_input="0" />
+      </Hints>
+
+    </SourceProxy>
+  </ProxyGroup>
+</ServerManagerConfiguration>
