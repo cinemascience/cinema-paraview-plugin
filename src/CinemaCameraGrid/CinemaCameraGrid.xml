@@ -1,6 +1,6 @@
 <ServerManagerConfiguration>
   <ProxyGroup name="filters">
-    <SourceProxy name="CinemaCameraGrid" class="CinemaCameraGrid" label="CinemaCameraGrid">
+    <SourceProxy name="CinemaCameraGrid" class="CinemaCameraGrid" label="Cinema Camera Grid">
 
       <Documentation
         long_help="CinemaCameraGrid long"
@@ -127,7 +127,7 @@
       <Hints>
         <RepresentationType view="RenderView" type="Wireframe" />
         <Visibility replace_input="0" />
-        <ShowInMenu category="CinemaExport" />
+        <ShowInMenu category="Cinema Export" />
       </Hints>
 
     </SourceProxy>

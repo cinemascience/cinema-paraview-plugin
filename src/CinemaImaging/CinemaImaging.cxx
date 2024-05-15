@@ -489,11 +489,8 @@ int CinemaImaging::RequestData(vtkInformation *request,
   const double diameter = sqrt(d[0]*d[0] + d[1]*d[1] + d[2]*d[2]);
 
   const int nCameras = cameras->GetNumberOfPoints();
-
   auto inputObjectCells = getCells(inputObject);
-  std::cout<<inputObjectCells<<std::endl;
   if(!inputObjectCells) return 0;
-  std::cout<<inputObjectCells<<std::endl;
   auto inputObjectConnectivityList = getPointer<vtkIdType>(inputObjectCells->GetConnectivityArray());
 
   // init device and scene
@@ -509,16 +506,13 @@ int CinemaImaging::RequestData(vtkInformation *request,
       inputObjectCells->GetNumberOfCells(), inputObjectConnectivityList
   )) return 0;
 
-
+  // Initialize Output
   const auto camPos = getPointer<float>(cameras->GetPoints()->GetData());
   const auto camUp = getPointer<float>(cameras->GetPointData()->GetArray("CameraUp"));
   const auto camDir = getPointer<float>(cameras->GetPointData()->GetArray("CameraDir"));
   const auto camHeight = getPointer<float>(cameras->GetPointData()->GetArray("CameraHeight"));
   const auto camNearFar = getPointer<float>(cameras->GetPointData()->GetArray("CameraNearFar"));
-
   auto outputCollection = vtkMultiBlockDataSet::GetData(outputVector);
-
-  // Initialize Output
   for(int c=0; c<nCameras; c++){
     auto image = vtkSmartPointer<vtkImageData>::New();
     image->SetDimensions(this->Resolution[0], this->Resolution[1], 1);
@@ -527,7 +521,6 @@ int CinemaImaging::RequestData(vtkInformation *request,
     image->AllocateScalars(VTK_FLOAT, 1);
     outputCollection->SetBlock(c, image);
   }
-
 
 #ifdef _OPENMP
   this->printMsg("#Imaging ("+std::to_string(nCameras)+" images, "+std::to_string(omp_get_max_threads())+" threads)");

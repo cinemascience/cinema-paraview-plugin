@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ServerManagerConfiguration>
     <ProxyGroup name="filters">
-        <SourceProxy name="CinemaGridLayout" class="CinemaGridLayout" label="CinemaGridLayout">
+        <SourceProxy name="CinemaGridLayout" class="CinemaGridLayout" label="Cinema Grid Layout">
             <Documentation
             long_help="CinemaGridLayout."
             short_help="CinemaGridLayout">
@@ -59,7 +59,7 @@
 
             <Hints>
                 <RepresentationType view="RenderView" type="Surface"/>
-                <ShowInMenu category="CinemaExport" />
+                <ShowInMenu category="Cinema Export" />
             </Hints>
         </SourceProxy>
     </ProxyGroup>

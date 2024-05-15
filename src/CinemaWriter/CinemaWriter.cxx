@@ -13,6 +13,8 @@
 #include <algorithm>
 // #include <H5Cpp.h>
 #include <vtk_hdf5.h>
+#include <sstream>
+#include <fstream>
 
 vtkStandardNewMacro(CinemaWriter);
 
@@ -93,12 +95,12 @@ int writeImage(vtkImageData* image, const std::string path, const int compressio
     addH5DataSet(meta,"resolution",s,data,0);
   }
 
-  // write offset (here always defaults to 0,0)
-  {
-    hsize_t s[3]{2,1,1};
-    float data[2]{0,0};
-    addH5DataSet(root,"offset",s,data,0);
-  }
+  // // write offset (here always defaults to 0,0)
+  // {
+  //   hsize_t s[3]{2,1,1};
+  //   float data[2]{0,0};
+  //   addH5DataSet(meta,"offset",s,data,0);
+  // }
 
   // write meta
   {
@@ -121,7 +123,7 @@ int writeImage(vtkImageData* image, const std::string path, const int compressio
           data[tIdx*nComponents+cIdx] = static_cast<float>(rawData[cIdx]);
         }
       }
-      hsize_t s[3]{(hsize_t)data.size(),1,1};
+      hsize_t s[3]{(hsize_t)data.size(),0,0};
       addH5DataSet(meta,array->GetName(),s,data.data(),compressionLevel);
     }
 
@@ -157,7 +159,7 @@ int writeImage(vtkImageData* image, const std::string path, const int compressio
           //   data[target*nComponents+cIdx] = static_cast<float>(rawData[cIdx]);
           // }
         // }
-        hsize_t s[3]{(hsize_t)dims[1],(hsize_t)dims[0],1};
+        hsize_t s[3]{(hsize_t)dims[1],(hsize_t)dims[0],0};
         addH5DataSet(channels,array->GetName(),s,data.data(),compressionLevel);
       }
     }
@@ -226,14 +228,13 @@ int getHeader(std::map<std::string,int>& header, const std::string path){
     return 0;
   }
 
-  size_t nMeta;
+  hsize_t nMeta;
   H5Gget_num_objs(meta,&nMeta);
-  for(size_t m=0; m<nMeta; m++){
+  for(hsize_t m=0; m<nMeta; m++){
 
     // const auto name = meta.getObjnameByIdx(m);
-    H5Gget_objname_by_idx(meta, (hsize_t)m, obj_name, MAX_NAME_LENGTH);
+    H5Gget_objname_by_idx(meta, m, obj_name, MAX_NAME_LENGTH);
     const std::string name(obj_name);
-    std::cout<<name<<std::endl;
 
     const hid_t dataset = H5Dopen(root, ("/meta/"+name).data(), H5P_DEFAULT);
     const hid_t space = H5Dget_space(dataset);

@@ -74,6 +74,15 @@ int CinemaCameraGrid::FillOutputPortInformation(int port, vtkInformation *info) 
   return 0;
 }
 
+template <typename V, int n>
+std::string vecToStr(const V* vec){
+  std::string res = "(";
+  for(int i=0; i<n; i++)
+    res+=std::to_string(vec[i])+',';
+  res[res.size()-1] = ')';
+  return res;
+}
+
 //----------------------------------------------------------------------------
 CinemaCameraGrid::~CinemaCameraGrid() = default;
 
@@ -176,22 +185,15 @@ int CinemaCameraGrid::RequestData(vtkInformation *request,
 
     const double kPi = vtkMath::Pi();
 
-    auto vecToStr = [](auto vec, int n){
-      std::string res = "(";
-      for(int i=0; i<n; i++) res+=std::to_string(vec[i])+',';
-      res[res.size()-1] = ')';
-      return res;
-    };
-
     this->printMsg("#Camera Grid");
-    this->printMsg("   center: " + vecToStr(center,3));
+    this->printMsg("   center: " + vecToStr<double,3>(center));
     this->printMsg("   radius: " + std::to_string(radius));
     this->printMsg("      phi: [" + std::to_string(this->GetStartPhi())+","+std::to_string(this->GetEndPhi())+"]");
     this->printMsg("    theta: [" + std::to_string(this->GetStartTheta())+","+std::to_string(this->GetEndTheta())+"]");
     this->printMsg("    axis: " + std::string(this->Axis==AXIS::X?"X":this->Axis==AXIS::Y?"Y":"Z"));
     this->printMsg("   height: " + std::to_string(camHeight[0]));
-    this->printMsg(" near_far: " + vecToStr(camNearFar_,2));
-    this->printMsg("       up: " + vecToStr(camUp_,3));
+    this->printMsg(" near_far: " + vecToStr<float,2>(camNearFar_));
+    this->printMsg("       up: " + vecToStr<float,3>(camUp_));
 
     {
       const auto coords = static_cast<float *>(sphereSource->GetOutput()->GetPoints()->GetData()->GetVoidPointer(0));

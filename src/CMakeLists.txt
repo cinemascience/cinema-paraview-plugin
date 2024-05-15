@@ -1,6 +1,6 @@
 set(table_of_contents
 "<toc>
-  <section title=\"CinemaExporter Plugin\" ref=\"index.html\">
+  <section title=\"Cinema Exporter Plugin\" ref=\"index.html\">
   </section>
 </toc>")
 

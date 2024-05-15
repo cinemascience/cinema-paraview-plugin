@@ -1,6 +1,6 @@
 <ServerManagerConfiguration>
   <ProxyGroup name="filters">
-    <SourceProxy name="CinemaImaging" class="CinemaImaging" label="CinemaImaging">
+    <SourceProxy name="CinemaImaging" class="CinemaImaging" label="Cinema Imaging">
       <Documentation
         long_help="CinemaImaging long"
         short_help="CinemaImaging short">
@@ -37,7 +37,7 @@
 
       <Hints>
         <RepresentationType view="RenderView" type="Wireframe" />
-        <ShowInMenu category="CinemaExport" />
+        <ShowInMenu category="Cinema Export" />
       </Hints>
 
     </SourceProxy>

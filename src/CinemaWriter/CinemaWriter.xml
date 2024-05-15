@@ -1,6 +1,6 @@
 <ServerManagerConfiguration>
   <ProxyGroup name="filters">
-    <SourceProxy name="CinemaWriter" class="CinemaWriter" label="CinemaWriter">
+    <SourceProxy name="CinemaWriter" class="CinemaWriter" label="Cinema Writer">
 
       <Documentation
         long_help="CinemaWriter long"
@@ -50,7 +50,7 @@
       </Property>
 
       <Hints>
-        <ShowInMenu category="CinemaExport" />
+        <ShowInMenu category="Cinema Export" />
         <RepresentationType view="RenderView" type="Outline"/>
         <Visibility replace_input="0" />
       </Hints>

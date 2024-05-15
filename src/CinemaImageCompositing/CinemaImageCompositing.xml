@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ServerManagerConfiguration>
     <ProxyGroup name="filters">
-        <SourceProxy name="CinemaImageCompositing" class="CinemaImageCompositing" label="CinemaImageCompositing">
+        <SourceProxy name="CinemaImageCompositing" class="CinemaImageCompositing" label="Cinema Image Compositing">
             <Documentation
             long_help="CinemaImageCompositing."
             short_help="CinemaImageCompositing">
@@ -21,7 +21,7 @@
 
             <Hints>
                 <RepresentationType view="RenderView" type="Surface"/>
-                <ShowInMenu category="CinemaExport" />
+                <ShowInMenu category="Cinema Export" />
             </Hints>
         </SourceProxy>
     </ProxyGroup>
