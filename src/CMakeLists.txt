@@ -15,13 +15,14 @@ paraview_add_plugin(CinemaExport
     "js/*.js"
     "style/style.css"
   DOCUMENTATION_TOC "${table_of_contents}"
-  MODULES CinemaAlgorithm CinemaImaging CinemaImageCompositing CinemaCameraGrid CinemaGridLayout CinemaWriter
+  MODULES CinemaAlgorithm CinemaImaging CinemaImageCompositing CinemaCameraGrid CinemaGridLayout CinemaDepthImageProjection CinemaWriter
   MODULE_FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/CinemaAlgorithm/vtk.module"
     "${CMAKE_CURRENT_SOURCE_DIR}/CinemaImaging/vtk.module"
     "${CMAKE_CURRENT_SOURCE_DIR}/CinemaImageCompositing/vtk.module"
     "${CMAKE_CURRENT_SOURCE_DIR}/CinemaCameraGrid/vtk.module"
     "${CMAKE_CURRENT_SOURCE_DIR}/CinemaGridLayout/vtk.module"
+    "${CMAKE_CURRENT_SOURCE_DIR}/CinemaDepthImageProjection/vtk.module"
     "${CMAKE_CURRENT_SOURCE_DIR}/CinemaWriter/vtk.module"
 )
 

@@ -1,0 +1,29 @@
+<ServerManagerConfiguration>
+  <ProxyGroup name="filters">
+    <SourceProxy name="CinemaDepthImageProjection" class="CinemaDepthImageProjection" label="Cinema Depth Image Projection">
+
+      <Documentation
+        long_help="CinemaDepthImageProjection long"
+        short_help="CinemaDepthImageProjection short">
+        TODO
+      </Documentation>
+
+      <InputProperty name="Input" command="SetInputConnection">
+          <ProxyGroupDomain name="groups">
+              <Group name="sources" />
+              <Group name="filters" />
+          </ProxyGroupDomain>
+          <DataTypeDomain name="input_type">
+              <DataType value="vtkMultiBlockDataSet" />
+          </DataTypeDomain>
+          <Documentation>vtkMultiBlockDataSet.</Documentation>
+      </InputProperty>
+
+      <Hints>
+        <RepresentationType view="RenderView" type="Surface" />
+        <ShowInMenu category="Cinema Export" />
+      </Hints>
+
+    </SourceProxy>
+  </ProxyGroup>
+</ServerManagerConfiguration>

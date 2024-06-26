@@ -1,0 +1,6 @@
+NAME
+  CinemaDepthImageProjection
+DEPENDS
+  CinemaAlgorithm
+PRIVATE_DEPENDS
+  VTK::CommonCore

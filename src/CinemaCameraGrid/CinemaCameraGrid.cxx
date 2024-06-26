@@ -191,7 +191,7 @@ int CinemaCameraGrid::RequestData(vtkInformation *request,
     this->printMsg("      phi: [" + std::to_string(this->GetStartPhi())+","+std::to_string(this->GetEndPhi())+"]");
     this->printMsg("    theta: [" + std::to_string(this->GetStartTheta())+","+std::to_string(this->GetEndTheta())+"]");
     this->printMsg("    axis: " + std::string(this->Axis==AXIS::X?"X":this->Axis==AXIS::Y?"Y":"Z"));
-    this->printMsg("   height: " + std::to_string(camHeight[0]));
+    this->printMsg("   height: " + std::to_string(camHeight_));
     this->printMsg(" near_far: " + vecToStr<float,2>(camNearFar_));
     this->printMsg("       up: " + vecToStr<float,3>(camUp_));
 
