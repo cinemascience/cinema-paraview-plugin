@@ -36,7 +36,7 @@
       </IntVectorProperty>
 
       <Hints>
-        <RepresentationType view="RenderView" type="Wireframe" />
+        <RepresentationType view="RenderView" type="Outline" />
         <ShowInMenu category="Cinema Export" />
       </Hints>
 

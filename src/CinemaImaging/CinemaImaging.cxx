@@ -15,6 +15,9 @@
 #include <vtkCellData.h>
 #include <vtkImageData.h>
 
+#include <vtkGeometryFilter.h>
+#include <vtkTriangleFilter.h>
+
 #include <embree3/rtcore.h>
 
 #ifdef _OPENMP
@@ -479,6 +482,7 @@ int CinemaImaging::RequestData(vtkInformation *request,
   auto cameras = vtkPointSet::GetData(inputVector[1]);
   if(!inputObject || !cameras) return 0;
 
+  // move vtk object to embree
   double bounds[6];
   inputObject->GetBounds(bounds);
   const double d[3]{
@@ -488,10 +492,47 @@ int CinemaImaging::RequestData(vtkInformation *request,
   };
   const double diameter = sqrt(d[0]*d[0] + d[1]*d[1] + d[2]*d[2]);
 
-  const int nCameras = cameras->GetNumberOfPoints();
+  vtkSmartPointer<vtkPointSet> inputObject_;
+
   auto inputObjectCells = getCells(inputObject);
   if(!inputObjectCells) return 0;
+  const auto cellDimension = inputObjectCells->IsHomogeneous();
+  if(cellDimension<0 || cellDimension!=3){
+    std::cout<<"WARNING: Triangulating Input (!Expensive)"<<std::endl;
+
+    vtkNew<vtkGeometryFilter> geometryFilter;
+    vtkNew<vtkTriangleFilter> triangleFilter;
+
+    geometryFilter->SetInputData(inputObject);
+    triangleFilter->SetInputConnection(0,geometryFilter->GetOutputPort(0));
+    triangleFilter->Update();
+    inputObject_ = triangleFilter->GetOutput();
+    inputObjectCells = getCells(inputObject_);
+    if(!inputObjectCells) return 0;
+  } else {
+    inputObject_.TakeReference( inputObject->NewInstance() );
+    inputObject_->ShallowCopy(inputObject);
+  }
+
   auto inputObjectConnectivityList = getPointer<vtkIdType>(inputObjectCells->GetConnectivityArray());
+
+  const size_t nVertices = inputObject_->GetNumberOfPoints();
+  float* vertexCoords;
+  std::vector<float> vertexCoords_;
+  const auto inputObjectPoints = inputObject_->GetPoints();
+  if(inputObjectPoints->GetDataType()==VTK_FLOAT){
+    vertexCoords = getPointer<float>(inputObjectPoints->GetData());
+  } else {
+    const double* vertexCoords_d = getPointer<double>(inputObjectPoints->GetData());
+    vertexCoords_.resize(nVertices*3);
+
+    #ifdef _OPENMP
+    #pragma omp parallel for
+    #endif
+    for(size_t i=0; i<nVertices*3; i++)
+      vertexCoords_[i] = static_cast<float>(vertexCoords_d[i]);
+    vertexCoords = vertexCoords_.data();
+  }
 
   // init device and scene
   RTCDevice device;
@@ -501,8 +542,8 @@ int CinemaImaging::RequestData(vtkInformation *request,
   if(!initializeScene<vtkIdType>(
       scene,
       device,
-      inputObject->GetNumberOfPoints(),
-      getPointer<float>(inputObject->GetPoints()->GetData()),
+      nVertices,
+      vertexCoords,
       inputObjectCells->GetNumberOfCells(), inputObjectConnectivityList
   )) return 0;
 
@@ -513,6 +554,8 @@ int CinemaImaging::RequestData(vtkInformation *request,
   const auto camHeight = getPointer<float>(cameras->GetPointData()->GetArray("CameraHeight"));
   const auto camNearFar = getPointer<float>(cameras->GetPointData()->GetArray("CameraNearFar"));
   auto outputCollection = vtkMultiBlockDataSet::GetData(outputVector);
+
+  const int nCameras = cameras->GetNumberOfPoints();
   for(int c=0; c<nCameras; c++){
     auto image = vtkSmartPointer<vtkImageData>::New();
     image->SetDimensions(this->Resolution[0], this->Resolution[1], 1);
@@ -567,7 +610,7 @@ int CinemaImaging::RequestData(vtkInformation *request,
     MapPointAndCellData(
       image,
 
-      inputObject, primitiveId_, barycentricCoordinates_,
+      inputObject_, primitiveId_, barycentricCoordinates_,
       inputObjectConnectivityList
     );
 
