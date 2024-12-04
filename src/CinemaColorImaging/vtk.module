@@ -1,0 +1,9 @@
+NAME
+  CinemaColorImaging
+DEPENDS
+  CinemaAlgorithm
+  VTK::FiltersCore
+  ParaView::RemotingViews
+  ParaView::pqApplicationComponents
+PRIVATE_DEPENDS
+  VTK::CommonCore

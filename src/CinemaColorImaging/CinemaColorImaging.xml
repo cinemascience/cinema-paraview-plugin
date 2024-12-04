@@ -1,0 +1,34 @@
+<ServerManagerConfiguration>
+  <ProxyGroup name="filters">
+    <SourceProxy name="CinemaColorImaging" class="CinemaColorImaging">
+      <Documentation
+        long_help="CinemaColorImaging long"
+        short_help="CinemaColorImaging short">
+        CinemaColorImaging doc text
+      </Documentation>
+
+      <!-- Inputs -->
+      <InputProperty name="Cameras" port_index="0" command="SetInputConnection">
+        <ProxyGroupDomain name="groups">
+          <Group name="sources" />
+          <Group name="filters" />
+        </ProxyGroupDomain>
+        <DataTypeDomain name="input_type">
+          <DataType value="vtkPointSet" />
+        </DataTypeDomain>
+        <Documentation>vtkPointSet that represents the cameras.</Documentation>
+      </InputProperty>
+
+      <IntVectorProperty name="Resolution" command="SetResolution" number_of_elements="2" default_values="512 512">
+        <Documentation>Image Resolution</Documentation>
+      </IntVectorProperty>
+
+      <Hints>
+        <RepresentationType view="RenderView" type="Outline" />
+        <LiveSource interval="500" />
+        <ShowInMenu category="Cinema Export" />
+      </Hints>
+
+    </SourceProxy>
+  </ProxyGroup>
+</ServerManagerConfiguration>
