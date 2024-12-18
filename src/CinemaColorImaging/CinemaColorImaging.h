@@ -14,8 +14,6 @@ public:
   vtkSetVector2Macro(Resolution, int);
   vtkGetVector2Macro(Resolution, int);
 
-  bool GetNeedsUpdate();
-
 protected:
   CinemaColorImaging();
   ~CinemaColorImaging();
@@ -32,5 +30,4 @@ private:
 
   int Resolution[2]{256, 256};
   bool NeedsUpdate{false};
-  bool Ready{false};
 };

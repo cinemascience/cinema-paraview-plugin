@@ -23,9 +23,17 @@
         <Documentation>Image Resolution</Documentation>
       </IntVectorProperty>
 
+      <Property name='Debug_Execute'
+        label='Render'
+        command='Modified'
+        panel_widget='command_button'>
+        <Documentation>
+          Render all images.
+        </Documentation>
+      </Property>
+
       <Hints>
         <RepresentationType view="RenderView" type="Outline" />
-        <LiveSource interval="500" />
         <ShowInMenu category="Cinema Export" />
       </Hints>
 
