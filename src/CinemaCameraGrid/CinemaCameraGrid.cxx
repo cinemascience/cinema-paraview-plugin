@@ -1,3 +1,4 @@
+
 #include "CinemaCameraGrid.h"
 
 #include <vtkMultiProcessController.h>
@@ -180,20 +181,20 @@ int CinemaCameraGrid::RequestData(vtkInformation *request,
     const float camHeight_ = this->CamHeight<=0 ? diameter : this->CamHeight;
     const float camNearFar_[2] = {
       (float)this->NearFar[0],
-      this->NearFar[1]==0.0 ? (float)diameter : (float)this->NearFar[1]
+      this->NearFar[1]==0.0 ? (float)(radius*2.0) : (float)this->NearFar[1]
     };
 
     const double kPi = vtkMath::Pi();
 
-    this->printMsg("#Camera Grid");
-    this->printMsg("   center: " + vecToStr<double,3>(center));
-    this->printMsg("   radius: " + std::to_string(radius));
-    this->printMsg("      phi: [" + std::to_string(this->GetStartPhi())+","+std::to_string(this->GetEndPhi())+"]");
-    this->printMsg("    theta: [" + std::to_string(this->GetStartTheta())+","+std::to_string(this->GetEndTheta())+"]");
-    this->printMsg("    axis: " + std::string(this->Axis==AXIS::X?"X":this->Axis==AXIS::Y?"Y":"Z"));
-    this->printMsg("   height: " + std::to_string(camHeight_));
-    this->printMsg(" near_far: " + vecToStr<float,2>(camNearFar_));
-    this->printMsg("       up: " + vecToStr<float,3>(camUp_));
+    this->printMsg("# Camera Grid");
+    this->printMsg("    center: " + vecToStr<double,3>(center));
+    this->printMsg("    radius: " + std::to_string(radius));
+    this->printMsg("       phi: [" + std::to_string(this->GetStartPhi())+","+std::to_string(this->GetEndPhi())+"]");
+    this->printMsg("     theta: [" + std::to_string(this->GetStartTheta())+","+std::to_string(this->GetEndTheta())+"]");
+    this->printMsg("      axis: " + std::string(this->Axis==AXIS::X?"X":this->Axis==AXIS::Y?"Y":"Z"));
+    this->printMsg("    height: " + std::to_string(camHeight_));
+    this->printMsg("  near_far: " + vecToStr<float,2>(camNearFar_));
+    this->printMsg("        up: " + vecToStr<float,3>(camUp_));
 
     {
       const auto coords = static_cast<float *>(sphereSource->GetOutput()->GetPoints()->GetData()->GetVoidPointer(0));

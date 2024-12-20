@@ -18,7 +18,11 @@
 #include <vtkGeometryFilter.h>
 #include <vtkTriangleFilter.h>
 
+#ifdef USE_EMBREE3
 #include <embree3/rtcore.h>
+#else
+#include <embree4/rtcore.h>
+#endif
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -152,13 +156,13 @@ int renderImage(
   const int resX = resolution[0];
   const int resY = resolution[1];
 
-  // embree 3
-  struct RTCIntersectContext context;
-  rtcInitIntersectContext(&context);
-
-  // embree 4
-  // struct RTCRayQueryContext context;
-  // rtcInitRayQueryContext(&context);
+  #ifdef USE_EMBREE3
+    struct RTCIntersectContext context;
+    rtcInitIntersectContext(&context);
+  #else
+    struct RTCRayQueryContext context;
+    rtcInitRayQueryContext(&context);
+  #endif
 
   const auto normalize = [](float out[3], const float in[3]) {
     const float temp = sqrt(in[0] * in[0] + in[1] * in[1] + in[2] * in[2]);
@@ -242,11 +246,11 @@ int renderImage(
       rayhit.hit.geomID = RTC_INVALID_GEOMETRY_ID;
       rayhit.hit.instID[0] = RTC_INVALID_GEOMETRY_ID;
 
-      // embree 3
-      rtcIntersect1(scene, &context, &rayhit);
-
-      // embree 4
-      // rtcIntersect1(scene, &rayhit);
+      #ifdef USE_EMBREE3
+        rtcIntersect1(scene, &context, &rayhit);
+      #else
+        rtcIntersect1(scene, &rayhit);
+      #endif
 
       // write depth
       const bool hitPrimitive = rayhit.hit.geomID != RTC_INVALID_GEOMETRY_ID;
@@ -361,6 +365,18 @@ int lookupArray(
   return 1;
 };
 
+int addRangeInformation(vtkDataObject* obj, vtkDataArray* data){
+  vtkNew<vtkFloatArray> range;
+  range->SetName((std::string(data->GetName())+"_range").data());
+  range->SetNumberOfValues(2);
+  double range_[2];
+  data->GetRange(range_);
+  range->SetValue(0, range_[0]);
+  range->SetValue(1, range_[1]);
+  obj->GetFieldData()->AddArray(range);
+  return 1;
+};
+
 int MapPointAndCellData(
   vtkImageData *image,
 
@@ -396,6 +412,7 @@ int MapPointAndCellData(
     outputArray->SetNumberOfTuples(nPixels);
 
     imagePD->AddArray(outputArray);
+    addRangeInformation(image,inputArray);
 
     switch(inputArray->GetDataType()) {
       vtkTemplateMacro(status = interpolateArray(
@@ -424,6 +441,7 @@ int MapPointAndCellData(
     outputArray->SetNumberOfTuples(nPixels);
 
     imagePD->AddArray(outputArray);
+    addRangeInformation(image,inputArray);
 
     switch(inputArray->GetDataType()) {
       vtkTemplateMacro(status = lookupArray(
@@ -566,7 +584,7 @@ int CinemaImaging::RequestData(vtkInformation *request,
   }
 
 #ifdef _OPENMP
-  this->printMsg("#Imaging ("+std::to_string(nCameras)+" images, "+std::to_string(omp_get_max_threads())+" threads)");
+  this->printMsg("# Imaging ("+std::to_string(nCameras)+" images, "+std::to_string(omp_get_max_threads())+" threads)");
   #pragma omp parallel for
 #endif
   for(int c=0; c<nCameras; c++){

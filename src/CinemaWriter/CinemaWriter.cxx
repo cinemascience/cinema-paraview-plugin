@@ -165,8 +165,6 @@ int writeImage(vtkImageData* image, const std::string path, const int compressio
     }
   }
 
-  // root.close();
-
   H5Gclose(meta);
   H5Gclose(channels);
   H5Fclose(root);
@@ -365,7 +363,7 @@ int CinemaWriter::RequestData(vtkInformation *request,
   if(!ensureDirectoryExists(this->OutputDirectory)) return 0;
 
   const size_t nImages = inputAsMB->GetNumberOfBlocks();
-  this->printMsg("#Writer ("+std::to_string(nImages)+" images)");
+  this->printMsg("# Writer ("+std::to_string(nImages)+" images)");
   for(size_t i=0; i<nImages; i++){
     auto image = vtkImageData::SafeDownCast(inputAsMB->GetBlock(i));
     if(!image){

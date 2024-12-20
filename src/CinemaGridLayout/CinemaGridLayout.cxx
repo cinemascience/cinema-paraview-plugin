@@ -109,7 +109,7 @@ int CinemaGridLayout::RequestData(vtkInformation *request,
 
   size_t const nBlocks = inputMB->GetNumberOfBlocks();
 
-  this->printMsg("#Grid Layout (translating " + std::to_string(nBlocks) + " objects)");
+  this->printMsg("# Grid Layout (translating " + std::to_string(nBlocks) + " objects)");
 
   for(size_t i = 0; i < nBlocks; i++) {
     auto block = inputMB->GetBlock(i);

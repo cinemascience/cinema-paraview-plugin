@@ -93,7 +93,7 @@ int CinemaImageCompositing::RequestData(vtkInformation *request,
   size_t nBlocks = inputMB->GetNumberOfBlocks();
 
   if(procid==0)
-    this->printMsg("#Image Compositing ("+std::to_string(nBlocks)+" blocks, "+std::to_string(this->Controller->GetNumberOfProcesses())+" ranks)");
+    this->printMsg("# Image Compositing ("+std::to_string(nBlocks)+" blocks, "+std::to_string(this->Controller->GetNumberOfProcesses())+" ranks)");
 
   CompositeDepthOp compositeDepthOp;
   CompositeArrayOp compositeArrayOp;

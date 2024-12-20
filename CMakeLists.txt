@@ -2,11 +2,15 @@ cmake_minimum_required(VERSION 3.8)
 project(CinemaExport)
 
 find_package(ParaView REQUIRED)
-
-find_package(embree 3.13 REQUIRED)
 find_package(OpenMP)
 
 option(BUILD_SHARED_LIBS "Build shared libraries" ON)
+option(USE_EMBREE3 "Use EMBREE 3" ON)
+if(USE_EMBREE3)
+  find_package(embree 3.13 REQUIRED)
+else()
+  find_package(embree 4 REQUIRED)
+endif()
 
 include(GNUInstallDirs)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_BINDIR}")
