@@ -300,7 +300,7 @@ int interpolateArray(
       const size_t bcIndex = i * 2;
       const float &u = barycentricCoordinates[bcIndex + 0];
       const float &v = barycentricCoordinates[bcIndex + 1];
-      const float w = 1 - u - v;
+      const float w = 1.f - u - v;
 
       outputArray[i]
         = static_cast<float>(w * inputArray[v0] + u * inputArray[v1] + v * inputArray[v2]);
@@ -365,14 +365,14 @@ int lookupArray(
   return 1;
 };
 
-int addRangeInformation(vtkDataObject* obj, vtkDataArray* data){
+int addRangeInformation(vtkImageData* obj, vtkDataArray* data){
   vtkNew<vtkFloatArray> range;
   range->SetName((std::string(data->GetName())+"_range").data());
   range->SetNumberOfValues(2);
   double range_[2];
   data->GetRange(range_);
-  range->SetValue(0, range_[0]);
-  range->SetValue(1, range_[1]);
+  range->SetValue(0, static_cast<float>(range_[0]));
+  range->SetValue(1, static_cast<float>(range_[1]));
   obj->GetFieldData()->AddArray(range);
   return 1;
 };
@@ -391,7 +391,6 @@ int MapPointAndCellData(
   int dim[3];
   image->GetDimensions(dim);
   size_t const nPixels = dim[0] * dim[1];
-
   const size_t nInputObjectPDArrays = inputObjectPD->GetNumberOfArrays();
   const size_t nInputObjectCDArrays = inputObjectCD->GetNumberOfArrays();
 
@@ -445,11 +444,11 @@ int MapPointAndCellData(
 
     switch(inputArray->GetDataType()) {
       vtkTemplateMacro(status = lookupArray(
-                         getPointer<float>(outputArray),
+                        getPointer<float>(outputArray),
 
-                         primitiveIdArray,
-                         getPointer<VTK_TT>(inputArray),
-                         nPixels, inputArray->GetNumberOfComponents()));
+                        primitiveIdArray,
+                        getPointer<VTK_TT>(inputArray),
+                        nPixels, inputArray->GetNumberOfComponents()));
     }
   }
 
@@ -564,6 +563,19 @@ int CinemaImaging::RequestData(vtkInformation *request,
       vertexCoords,
       inputObjectCells->GetNumberOfCells(), inputObjectConnectivityList
   )) return 0;
+
+  // ensure data ranges are precomputed
+  {
+    std::vector<vtkFieldData*> data{inputObject_->GetPointData(),inputObject_->GetCellData()};
+    for(size_t i=0; i<2; i++){
+      const size_t n = data[i]->GetNumberOfArrays();
+      for(size_t a=0; a<n; a++){
+        auto array = data[i]->GetArray(a);
+        if(array)
+          array->GetRange();
+      }
+    }
+  }
 
   // Initialize Output
   const auto camPos = getPointer<float>(cameras->GetPoints()->GetData());

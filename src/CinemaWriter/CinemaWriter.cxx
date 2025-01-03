@@ -41,35 +41,34 @@ int CinemaWriter::FillOutputPortInformation(int port, vtkInformation *info) {
   return 0;
 };
 
-int addH5DataSet(const hid_t& group, const std::string& name, const hsize_t dim[3], const float* data, const int compression){
+int addH5DataSet(const hid_t& group, const std::string& name, const hsize_t dim[3], const void* data, const hsize_t data_type, const int compression){
 
   hsize_t DIM = dim[1]==0 && dim[2]==0
     ? 1
     : dim[2]==0
       ? 2
       : 3;
+  const hid_t dataspace = H5Screate_simple(DIM, dim, NULL);
+  const hid_t plist = H5Pcreate(H5P_DATASET_CREATE);
   hsize_t cdims[3]{
-    32<dim[0] ? 32 : dim[0],
+    256<dim[0] ? 256 : dim[0],
     32<dim[1] ? 32 : dim[1],
     dim[2]
   };
-  const hid_t dataspace = H5Screate_simple(DIM, dim, NULL);
-
-  const hid_t plist = H5Pcreate(H5P_DATASET_CREATE);
   H5Pset_chunk(plist, DIM, cdims);
   H5Pset_deflate(plist, compression);
 
   const hid_t dataset = H5Dcreate(
     group,
     name.data(),
-    H5T_NATIVE_FLOAT,
+    data_type,
     dataspace,
     H5P_DEFAULT,
     plist,
     H5P_DEFAULT
   );
 
-  H5Dwrite(dataset, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
+  H5Dwrite(dataset, data_type, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
 
   H5Dclose(dataset);
   H5Sclose(dataspace);
@@ -78,6 +77,34 @@ int addH5DataSet(const hid_t& group, const std::string& name, const hsize_t dim[
   return 1;
 }
 
+template <typename DT>
+int writeArray(const hid_t group, const int compressionLevel, const hid_t data_type, vtkDataArray* array, hsize_t resX=0, hsize_t resY=0){
+
+  int nTuples = array->GetNumberOfTuples();
+  int nComponents = array->GetNumberOfComponents();
+  if(nTuples<1)
+    return 0;
+
+  if(resX>0){
+    hsize_t s[3]{resY,resX,(hsize_t)nComponents};
+    const auto data_ = static_cast<DT*>(array->GetVoidPointer(0));
+    std::vector<DT> data(resX*resY*nComponents);
+    for(int y=0;y<resY; y++){
+      for(int x=0;x<resX; x++){
+        const auto i_idx = y*resX + x;
+        const auto o_idx = (resY-1-y)*resX + x;
+        for(int cIdx=0; cIdx<nComponents; cIdx++){
+          data[o_idx*nComponents+cIdx] = data_[i_idx*nComponents+cIdx];
+        }
+      }
+    }
+    return addH5DataSet(group,array->GetName(),s,data.data(),data_type,compressionLevel);
+  } else {
+    hsize_t s[3]{(hsize_t)nTuples,(hsize_t)(nComponents<2?0:nComponents),0};
+    const auto data = static_cast<DT*>(array->GetVoidPointer(0));
+    return addH5DataSet(group,array->GetName(),s,data,data_type,compressionLevel);
+  }
+};
 
 int writeImage(vtkImageData* image, const std::string path, const int compressionLevel){
 
@@ -92,7 +119,7 @@ int writeImage(vtkImageData* image, const std::string path, const int compressio
   {
     hsize_t s[3]{2,0,0};
     float data[2]{(float)dims[0],(float)dims[1]};
-    addH5DataSet(meta,"resolution",s,data,0);
+    addH5DataSet(meta,"resolution",s,data,H5T_NATIVE_FLOAT,0);
   }
 
   // // write offset (here always defaults to 0,0)
@@ -104,66 +131,78 @@ int writeImage(vtkImageData* image, const std::string path, const int compressio
 
   // write meta
   {
-    // field data
     auto arrays = image->GetFieldData();
     for(int i=0; i<arrays->GetNumberOfArrays(); i++){
       auto array = arrays->GetArray(i);
       if(!array)
         continue;
-      int nTuples = array->GetNumberOfTuples();
-      int nComponents = array->GetNumberOfComponents();
-      if(nTuples<1 || (nTuples>1 && nComponents>1))
-        continue;
-      std::vector<float> data(nTuples*nComponents);
-      std::vector<double> rawData(nComponents);
-
-      for(int tIdx=0; tIdx<nTuples; tIdx++){
-        array->GetTuple(tIdx,rawData.data());
-        for(int cIdx=0; cIdx<nComponents; cIdx++){
-          data[tIdx*nComponents+cIdx] = static_cast<float>(rawData[cIdx]);
-        }
-      }
-      hsize_t s[3]{(hsize_t)data.size(),0,0};
-      addH5DataSet(meta,array->GetName(),s,data.data(),compressionLevel);
-    }
-
-    // write channels
-    {
-      auto arrays = image->GetPointData();
-      for(int i=0; i<arrays->GetNumberOfArrays(); i++){
-        auto array = arrays->GetArray(i);
-        if(!array)
-          continue;
-        int nTuples = array->GetNumberOfTuples();
-        int nComponents = array->GetNumberOfComponents();
-        if(nTuples<1 || nComponents>1)
-          continue;
-        std::vector<float> data(nTuples*nComponents);
-        std::vector<double> rawData(nComponents);
-
-        for(int y=0;y<dims[1]; y++){
-          for(int x=0;x<dims[0]; x++){
-            const auto i_idx = y*dims[0] + x;
-            const auto o_idx = (dims[1]-1-y)*dims[0] + x;
-            array->GetTuple(i_idx,rawData.data());
-            for(int cIdx=0; cIdx<nComponents; cIdx++){
-              data[o_idx*nComponents+cIdx] = static_cast<float>(rawData[cIdx]);
-            }
-          }
-        }
-
-        // for(int tIdx=0; tIdx<nTuples; tIdx++){
-          // array->GetTuple(tIdx,rawData.data());
-          // const auto target = nTuples-tIdx-1;
-          // for(int cIdx=0; cIdx<nComponents; cIdx++){
-          //   data[target*nComponents+cIdx] = static_cast<float>(rawData[cIdx]);
-          // }
-        // }
-        hsize_t s[3]{(hsize_t)dims[1],(hsize_t)dims[0],0};
-        addH5DataSet(channels,array->GetName(),s,data.data(),compressionLevel);
+      switch(array->GetDataType()){
+        case VTK_FLOAT:
+          writeArray<float>(meta,compressionLevel,H5T_NATIVE_FLOAT,array);
+          break;
+        default:
+          std::cout<<"Unsupported Data Type: "<<array->GetName()<<std::endl;
       }
     }
   }
+
+  // write channels
+  {
+    auto arrays = image->GetPointData();
+    for(int i=0; i<arrays->GetNumberOfArrays(); i++){
+      auto array = arrays->GetArray(i);
+      if(!array)
+        continue;
+      switch(array->GetDataType()){
+        case VTK_FLOAT:
+          writeArray<float>(channels,compressionLevel,H5T_NATIVE_FLOAT,array,dims[0],dims[1]);
+          break;
+        case VTK_UNSIGNED_CHAR:
+          writeArray<uint8_t>(channels,compressionLevel,H5T_NATIVE_UCHAR,array,dims[0],dims[1]);
+          break;
+        default:
+          std::cout<<"Unsupported Data Type: "<<array->GetName()<<std::endl;
+      }
+    }
+  }
+
+    // // write channels
+    // {
+    //   auto arrays = image->GetPointData();
+    //   for(int i=0; i<arrays->GetNumberOfArrays(); i++){
+    //     auto array = arrays->GetArray(i);
+    //     if(!array)
+    //       continue;
+    //     int nTuples = array->GetNumberOfTuples();
+    //     int nComponents = array->GetNumberOfComponents();
+    //     if(nTuples<1)
+    //       continue;
+    //     std::vector<float> data(nTuples*nComponents);
+    //     std::vector<double> rawData(nComponents);
+
+    //     for(int y=0;y<dims[1]; y++){
+    //       for(int x=0;x<dims[0]; x++){
+    //         const auto i_idx = y*dims[0] + x;
+    //         const auto o_idx = (dims[1]-1-y)*dims[0] + x;
+    //         array->GetTuple(i_idx,rawData.data());
+    //         for(int cIdx=0; cIdx<nComponents; cIdx++){
+    //           data[o_idx*nComponents+cIdx] = static_cast<float>(rawData[cIdx]);
+    //         }
+    //       }
+    //     }
+
+    //     // for(int tIdx=0; tIdx<nTuples; tIdx++){
+    //       // array->GetTuple(tIdx,rawData.data());
+    //       // const auto target = nTuples-tIdx-1;
+    //       // for(int cIdx=0; cIdx<nComponents; cIdx++){
+    //       //   data[target*nComponents+cIdx] = static_cast<float>(rawData[cIdx]);
+    //       // }
+    //     // }
+    //     hsize_t s[3]{(hsize_t)dims[1],(hsize_t)dims[0],(hsize_t)nComponents};
+    //     addH5DataSet(channels,array->GetName(),s,data.data(),H5T_NATIVE_FLOAT,compressionLevel);
+    //   }
+    // }
+  // }
 
   H5Gclose(meta);
   H5Gclose(channels);
