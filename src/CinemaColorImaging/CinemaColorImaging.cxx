@@ -34,7 +34,7 @@ PT* getPointer(vtkAbstractArray* array){
   return static_cast<PT*>(array->GetVoidPointer(0));
 }
 
-//----------------------------------------------------------------------------
+//------------------------------------------------------------------------------
 CinemaColorImaging::CinemaColorImaging(){
   this->SetNumberOfInputPorts(1);
   this->SetNumberOfOutputPorts(1);
@@ -56,7 +56,44 @@ int CinemaColorImaging::FillOutputPortInformation(int port, vtkInformation *info
   return 0;
 }
 
-//----------------------------------------------------------------------------
+//------------------------------------------------------------------------------
+int AddFieldDataArray_(vtkFieldData *fd, vtkDataArray *array, int tupleIdx, const std::string name="") {
+  if(!array)
+    return 0;
+
+  size_t nComponents = array->GetNumberOfComponents();
+
+  vtkNew<vtkFloatArray> newArray;
+  newArray->SetName(name.empty() ? array->GetName() : name.data());
+  newArray->SetNumberOfComponents(nComponents);
+  newArray->SetNumberOfTuples(1);
+
+  if(newArray->GetDataType() == array->GetDataType()) {
+    newArray->SetTuple(0, tupleIdx, array);
+  } else {
+    for(size_t i = 0; i < nComponents; i++)
+      newArray->SetValue(
+        i, array->GetVariantValue(tupleIdx * nComponents + i).ToDouble());
+  }
+
+  fd->AddArray(newArray);
+
+  return 1;
+};
+
+int AddAllFieldDataArrays_(vtkPointSet *cameras, vtkImageData *image, int tupleIdx) {
+  auto imageFD = image->GetFieldData();
+
+  auto camerasPD = cameras->GetPointData();
+  for(int i = 0; i < camerasPD->GetNumberOfArrays(); i++) {
+    AddFieldDataArray_(imageFD, camerasPD->GetArray(i), tupleIdx);
+  }
+  AddFieldDataArray_(imageFD, cameras->GetPoints()->GetData(), tupleIdx, "CameraPos");
+
+  return 1;
+};
+
+//------------------------------------------------------------------------------
 CinemaColorImaging::~CinemaColorImaging() = default;
 
 int CinemaColorImaging::RequestData(vtkInformation *request,
@@ -86,7 +123,7 @@ int CinemaColorImaging::RequestData(vtkInformation *request,
   // render images
   this->printMsg("# Color Imaging (#"+std::to_string(nCameras)+")");
 
-  window->SetSize(this->Resolution[0],this->Resolution[0]);
+  window->SetSize(this->Resolution[0],this->Resolution[1]);
   auto outputCollection = vtkMultiBlockDataSet::GetData(outputVector);
   for(int c=0; c<nCameras; c++){
     camera->SetPosition(camPos[c*3+0],camPos[c*3+1],camPos[c*3+2]);
@@ -94,7 +131,7 @@ int CinemaColorImaging::RequestData(vtkInformation *request,
     camera->SetFocalPoint(camPos[c*3+0]+camDir[c*3+0],camPos[c*3+1]+camDir[c*3+1],camPos[c*3+2]+camDir[c*3+2]);
     vtkSmartPointer<vtkImageData> image = vtkSmartPointer<vtkImageData>::Take(view->CaptureWindow(1));
     outputCollection->SetBlock(c, image);
-//     // AddAllFieldDataArrays( cameras, image, c );
+    AddAllFieldDataArrays_( cameras, image, c );
   }
 
   // reset window

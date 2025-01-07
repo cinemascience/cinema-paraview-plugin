@@ -25,6 +25,9 @@ public:
   vtkSetMacro(CompressionLevel, const int);
   vtkGetMacro(CompressionLevel, int);
 
+  vtkSetMacro(Format, const int);
+  vtkGetMacro(Format, int);
+
   int CreateDataCSV() const;
   int DeleteDatabase() const;
 
@@ -44,4 +47,5 @@ private:
 
   std::string OutputDirectory{""};
   int CompressionLevel{5};
+  int Format{0};
 };

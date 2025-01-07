@@ -10,6 +10,8 @@
 #include <vtkPointData.h>
 #include <vtkDirectory.h>
 
+#include <vtkPNGWriter.h>
+
 #include <algorithm>
 // #include <H5Cpp.h>
 #include <vtk_hdf5.h>
@@ -401,6 +403,9 @@ int CinemaWriter::RequestData(vtkInformation *request,
   if(!validateOutputDirectoryPath(this->OutputDirectory)) return 0;
   if(!ensureDirectoryExists(this->OutputDirectory)) return 0;
 
+  vtkNew<vtkPNGWriter> pngWriter;
+  pngWriter->SetCompressionLevel(this->CompressionLevel);
+
   const size_t nImages = inputAsMB->GetNumberOfBlocks();
   this->printMsg("# Writer ("+std::to_string(nImages)+" images)");
   for(size_t i=0; i<nImages; i++){
@@ -411,8 +416,16 @@ int CinemaWriter::RequestData(vtkInformation *request,
     }
 
     const std::string image_hash = getHashFromFieldData(image->GetFieldData());
-    const std::string path = this->OutputDirectory + "/" + image_hash + ".h5";
-    if(!writeImage(image,path,this->CompressionLevel))return 0;
+
+    if(this->Format==0){
+      const std::string path = this->OutputDirectory + "/" + image_hash + ".h5";
+      if(!writeImage(image,path,this->CompressionLevel))return 0;
+    } else {
+      const std::string path = this->OutputDirectory + "/" + image_hash + ".png";
+      pngWriter->SetInputData(image);
+      pngWriter->SetFileName(path.c_str());
+      pngWriter->Write();
+    }
   }
 
   auto output = vtkDataObject::GetData(outputVector);
