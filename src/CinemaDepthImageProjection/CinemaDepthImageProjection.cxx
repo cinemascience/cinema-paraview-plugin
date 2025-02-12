@@ -234,7 +234,12 @@ int CinemaDepthImageProjection::RequestData(vtkInformation *request,
   auto output = vtkMultiBlockDataSet::GetData(outputVector);
 
   size_t nBlocks = input->GetNumberOfBlocks();
-  this->printMsg("#Depth Image Projection ("+std::to_string(nBlocks)+" images, "+std::to_string(omp_get_max_threads())+" threads)");
+
+  #ifdef _OPENMP
+    this->printMsg("#Depth Image Projection ("+std::to_string(nBlocks)+" images, "+std::to_string(omp_get_max_threads())+" threads)");
+  #else
+    this->printMsg("#Depth Image Projection ("+std::to_string(nBlocks)+" images)");
+  #endif
 
   // initialize output
   for(size_t b=0; b<nBlocks; b++)
