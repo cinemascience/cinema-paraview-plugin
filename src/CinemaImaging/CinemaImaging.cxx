@@ -546,7 +546,7 @@ int CinemaImaging::RequestData(vtkInformation *request,
     #ifdef _OPENMP
     #pragma omp parallel for
     #endif
-    for(size_t i=0; i<nVertices*3; i++)
+    for(long long i=0; i<nVertices*3; i++)
       vertexCoords_[i] = static_cast<float>(vertexCoords_d[i]);
     vertexCoords = vertexCoords_.data();
   }

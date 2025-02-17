@@ -250,7 +250,7 @@ int CinemaDepthImageProjection::RequestData(vtkInformation *request,
   #ifdef _OPENMP
   #pragma omp parallel for
   #endif
-  for(size_t b=0; b<nBlocks; b++){
+  for(long long b=0; b<nBlocks; b++){
     auto image = vtkImageData::SafeDownCast(input->GetBlock(b));
     if(!image) continue;
 
