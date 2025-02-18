@@ -3,5 +3,6 @@ NAME
 DEPENDS
   CinemaAlgorithm
   VTK::FiltersCore
+  VTK::FiltersGeometry
 PRIVATE_DEPENDS
   VTK::CommonCore
