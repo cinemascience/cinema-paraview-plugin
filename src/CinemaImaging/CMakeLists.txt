@@ -13,3 +13,7 @@ if (TARGET OpenMP::OpenMP_CXX)
   set(openmp_cxx_lib OpenMP::OpenMP_CXX)
 endif()
 target_link_libraries(CinemaImaging PUBLIC ${EMBREE_LIBRARY} ${openmp_cxx_lib})
+
+if (USE_EMBREE3)
+  target_compile_definitions(CinemaImaging PUBLIC USE_EMBREE3)
+endif()
