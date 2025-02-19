@@ -1,5 +1,6 @@
 #include "CinemaColorImaging.h"
 
+#include <vtkCollection.h>
 #include <vtkDataObject.h>
 #include <vtkObjectFactory.h>
 #include <vtkInformation.h>
@@ -15,13 +16,11 @@
 #include <vtkCellData.h>
 #include <vtkImageData.h>
 
-#include <pqApplicationCore.h>
-#include <pqView.h>
-#include <pqServerManagerModel.h>
 #include <vtkSMViewProxy.h>
 #include <vtkSMRenderViewProxy.h>
-#include <QList>
 #include <vtkSMSaveScreenshotProxy.h>
+#include <vtkSMProxyManager.h>
+#include <vtkSMSessionProxyManager.h>
 #include <vtkCamera.h>
 #include <vtkVector.h>       // needed for vtkVector2i.
 #include <vtkRenderWindow.h>       // needed for vtkVector2i.
@@ -111,10 +110,12 @@ int CinemaColorImaging::RequestData(vtkInformation *request,
   const auto camNearFar = getPointer<float>(cameras->GetPointData()->GetArray("CameraNearFar"));
 
   // get render window
-  const auto* pv = pqApplicationCore::instance();
-  const auto* smm = pv->getServerManagerModel();
-  QList<pqView*> views = smm->findItems<pqView*>();
-  auto view = static_cast<vtkSMRenderViewProxy*>(views[0]->getViewProxy());
+  vtkSMProxyManager* proxyManager = vtkSMProxyManager::GetProxyManager();
+  vtkSMSessionProxyManager* sessionProxyManager = proxyManager->GetActiveSessionProxyManager();
+  vtkNew<vtkCollection> viewProxies;
+  sessionProxyManager->GetProxies("views", viewProxies);
+  auto view = vtkSMRenderViewProxy::SafeDownCast(viewProxies->GetItemAsObject(0));
+
   auto camera = view->GetActiveCamera();
   auto window = view->GetRenderWindow();
   const int prev_resX = window->GetSize()[0];
