@@ -18,13 +18,11 @@
 
 #include <vtkSMViewProxy.h>
 #include <vtkSMRenderViewProxy.h>
-#include <vtkSMSaveScreenshotProxy.h>
 #include <vtkSMProxyManager.h>
 #include <vtkSMSessionProxyManager.h>
 #include <vtkCamera.h>
 #include <vtkVector.h>       // needed for vtkVector2i.
 #include <vtkRenderWindow.h>       // needed for vtkVector2i.
-#include <vtkGenericOpenGLRenderWindow.h>       // needed for vtkVector2i.
 
 vtkStandardNewMacro(CinemaColorImaging);
 
