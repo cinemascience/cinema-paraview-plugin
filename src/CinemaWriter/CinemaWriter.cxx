@@ -45,11 +45,7 @@ int CinemaWriter::FillOutputPortInformation(int port, vtkInformation *info) {
 
 int addH5DataSet(const hid_t& group, const std::string& name, const hsize_t dim[3], const void* data, const hsize_t data_type, const int compression){
 
-  hsize_t DIM = dim[1]==0 && dim[2]==0
-    ? 1
-    : dim[2]==0
-      ? 2
-      : 3;
+  hsize_t DIM = dim[2];
   const hid_t dataspace = H5Screate_simple(DIM, dim, NULL);
   const hid_t plist = H5Pcreate(H5P_DATASET_CREATE);
   hsize_t cdims[3]{
@@ -88,7 +84,7 @@ int writeArray(const hid_t group, const int compressionLevel, const hid_t data_t
     return 0;
 
   if(resX>0){
-    hsize_t s[3]{resY,resX,(hsize_t)nComponents};
+    hsize_t s[3]{resY*resX,(hsize_t)nComponents,2};
     const auto data_ = static_cast<DT*>(array->GetVoidPointer(0));
     std::vector<DT> data(resX*resY*nComponents);
     for(int y=0;y<resY; y++){
@@ -102,7 +98,7 @@ int writeArray(const hid_t group, const int compressionLevel, const hid_t data_t
     }
     return addH5DataSet(group,array->GetName(),s,data.data(),data_type,compressionLevel);
   } else {
-    hsize_t s[3]{(hsize_t)nTuples,(hsize_t)(nComponents<2?0:nComponents),0};
+    hsize_t s[3]{(hsize_t)nTuples,(hsize_t)(nComponents),(hsize_t)nTuples};
     const auto data = static_cast<DT*>(array->GetVoidPointer(0));
     return addH5DataSet(group,array->GetName(),s,data,data_type,compressionLevel);
   }
