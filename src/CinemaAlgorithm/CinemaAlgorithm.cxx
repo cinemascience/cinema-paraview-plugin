@@ -16,6 +16,9 @@
 
 // Pass input type information key
 #include <vtkInformationKey.h>
+
+#include <iostream>
+
 vtkInformationKeyMacro(CinemaAlgorithm, SAME_DATA_TYPE_AS_INPUT_PORT, Integer);
 
 // Constructor / Destructor
@@ -171,7 +174,7 @@ int CinemaAlgorithm::ProcessRequest(vtkInformation *request,
     return this->RequestData(request, inputVector, outputVector);
   }
 
-  request->Print(cout);
+  request->Print(std::cout);
 
   return 0;
 };
