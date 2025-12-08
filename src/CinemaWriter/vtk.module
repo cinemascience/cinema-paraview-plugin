@@ -7,3 +7,4 @@ PRIVATE_DEPENDS
   VTK::CommonCore
   VTK::CommonSystem
   VTK::hdf5
+  VTK::IOImage
