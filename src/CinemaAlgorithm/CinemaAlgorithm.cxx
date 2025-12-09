@@ -14,6 +14,8 @@
 
 #include <vtkCompositeDataPipeline.h>
 
+#include <iostream>
+
 // Pass input type information key
 #include <vtkInformationKey.h>
 vtkInformationKeyMacro(CinemaAlgorithm, SAME_DATA_TYPE_AS_INPUT_PORT, Integer);
@@ -171,7 +173,7 @@ int CinemaAlgorithm::ProcessRequest(vtkInformation *request,
     return this->RequestData(request, inputVector, outputVector);
   }
 
-  request->Print(cout);
+  request->Print(std::cout);
 
   return 0;
 };
