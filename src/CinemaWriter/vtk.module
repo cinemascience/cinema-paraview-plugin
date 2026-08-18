@@ -4,6 +4,7 @@ DEPENDS
   CinemaAlgorithm
   VTK::FiltersCore
 PRIVATE_DEPENDS
+  ParaView::RemotingServerManager
   VTK::CommonCore
   VTK::CommonSystem
   VTK::hdf5

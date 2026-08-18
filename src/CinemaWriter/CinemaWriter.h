@@ -10,8 +10,9 @@
 
 #pragma once
 
-#include <CinemaAlgorithm.h>
 #include "CinemaWriterModule.h" // for export macro
+
+#include <CinemaAlgorithm.h>
 
 class CINEMAWRITER_EXPORT CinemaWriter : public CinemaAlgorithm {
 
@@ -19,7 +20,7 @@ public:
   static CinemaWriter* New();
   vtkTypeMacro(CinemaWriter, CinemaAlgorithm);
 
-  vtkSetMacro(OutputDirectory, const std::string &);
+  vtkSetMacro(OutputDirectory, const std::string&);
   vtkGetMacro(OutputDirectory, std::string);
 
   vtkSetMacro(CompressionLevel, const int);
@@ -35,11 +36,10 @@ protected:
   CinemaWriter();
   ~CinemaWriter();
 
-  int RequestData(vtkInformation *request,
-                 vtkInformationVector **inputVector,
-                 vtkInformationVector *outputVector) override;
-  int FillInputPortInformation(int port, vtkInformation *info) override;
-  int FillOutputPortInformation(int port, vtkInformation *info) override;
+  int RequestData(vtkInformation* request, vtkInformationVector** inputVector,
+                  vtkInformationVector* outputVector) override;
+  int FillInputPortInformation(int port, vtkInformation* info) override;
+  int FillOutputPortInformation(int port, vtkInformation* info) override;
 
 private:
   CinemaWriter(const CinemaWriter&) = delete;
