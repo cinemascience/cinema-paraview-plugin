@@ -4,4 +4,4 @@
 
 class vtkImageData;
 
-int WriteImageHDF5(vtkImageData* image, const std::string& path, int compressionLevel);
+bool WriteImageHDF5(vtkImageData* image, const std::string& path, int compressionLevel);

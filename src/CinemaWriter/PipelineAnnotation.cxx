@@ -1,271 +1,132 @@
 #include "PipelineAnnotation.h"
 
+#include <map>
+#include <set>
 #include <sstream>
 #include <string>
-#include <vtkNew.h>
-#include <vtkObjectBase.h>
 #include <vtkSMDoubleVectorProperty.h>
 #include <vtkSMInputProperty.h>
 #include <vtkSMIntVectorProperty.h>
 #include <vtkSMProperty.h>
 #include <vtkSMPropertyIterator.h>
 #include <vtkSMProxy.h>
-#include <vtkSMProxyIterator.h>
-#include <vtkSMProxyManager.h>
 #include <vtkSMProxyProperty.h>
-#include <vtkSMSessionProxyManager.h>
-#include <vtkSMSourceProxy.h>
 #include <vtkSMStringVectorProperty.h>
 
 namespace {
 
-// Forward declaration because DumpProperty() may recurse into DumpProxy().
-void DumpProxy(vtkSMProxy* proxy, int indent, bool followPipelineInputs, std::ostringstream& out);
-
-// -----------------------------------------------------------------------------
-// Dump one ServerManager property.
-//
-// Supported for now:
-//   vtkSMIntVectorProperty
-//   vtkSMDoubleVectorProperty
-//   vtkSMStringVectorProperty
-//   vtkSMProxyProperty
-//
-// vtkSMInputProperty is handled separately in DumpProxy(), since it represents
-// pipeline topology rather than an ordinary configurable property.
-// -----------------------------------------------------------------------------
-void DumpProperty(const char* name, vtkSMProperty* property, int indent, std::ostringstream& out) {
-  if (!name || !property) { return; }
-
-  const std::string pad(indent, ' ');
-
-  // ---------------------------------------------------------------------------
-  // Integer vector property
-  // ---------------------------------------------------------------------------
-  if (auto* p = vtkSMIntVectorProperty::SafeDownCast(property)) {
-    out << pad << name << " = ";
-
-    for (unsigned int i = 0; i < p->GetNumberOfElements(); ++i) {
-      if (i > 0) { out << ", "; }
-
-      out << p->GetElement(i);
-    }
-
-    out << '\n';
-    return;
+std::string JsonQuote(const std::string& value) {
+  std::ostringstream out;
+  out << '"';
+  for (char c : value) {
+    if (c == '"' || c == '\\') { out << '\\'; }
+    out << c;
   }
-
-  // ---------------------------------------------------------------------------
-  // Double vector property
-  // ---------------------------------------------------------------------------
-  if (auto* p = vtkSMDoubleVectorProperty::SafeDownCast(property)) {
-    out << pad << name << " = ";
-
-    for (unsigned int i = 0; i < p->GetNumberOfElements(); ++i) {
-      if (i > 0) { out << ", "; }
-
-      out << p->GetElement(i);
-    }
-
-    out << '\n';
-    return;
-  }
-
-  // ---------------------------------------------------------------------------
-  // String vector property
-  // ---------------------------------------------------------------------------
-  if (auto* p = vtkSMStringVectorProperty::SafeDownCast(property)) {
-    out << pad << name << " = ";
-
-    for (unsigned int i = 0; i < p->GetNumberOfElements(); ++i) {
-      if (i > 0) { out << ", "; }
-
-      const char* value = p->GetElement(i);
-
-      out << "\"" << (value ? value : "") << "\"";
-    }
-
-    out << '\n';
-    return;
-  }
-
-  // ---------------------------------------------------------------------------
-  // Nested proxy property
-  //
-  // Examples:
-  //
-  //   ClipFunction -> Plane
-  //   Locator      -> MergePoints
-  //
-  // These are NOT pipeline connections, so when recursively dumping the
-  // contained proxy we explicitly disable traversal through Input properties.
-  // ---------------------------------------------------------------------------
-  if (auto* p = vtkSMProxyProperty::SafeDownCast(property)) {
-    out << pad << name << " =" << '\n';
-
-    for (unsigned int i = 0; i < p->GetNumberOfProxies(); ++i) {
-      vtkSMProxy* subProxy = p->GetProxy(i);
-
-      if (!subProxy) { continue; }
-
-      DumpProxy(subProxy, indent + 2, false, out);
-    }
-
-    return;
-  }
-
-  // ---------------------------------------------------------------------------
-  // Unsupported property type.
-  //
-  // Keep this visible during development so that we notice property classes
-  // which should eventually be serialized as well.
-  // ---------------------------------------------------------------------------
-  out << pad << name << " = <unsupported " << property->GetClassName() << ">" << '\n';
+  out << '"';
+  return out.str();
 }
 
-// -----------------------------------------------------------------------------
-// Dump a ServerManager proxy.
-//
-// followPipelineInputs:
-//
-//   true:
-//       This proxy is part of the actual upstream pipeline. Its
-//       vtkSMInputProperty entries are followed recursively.
-//
-//   false:
-//       This proxy is a nested helper/property proxy such as Plane or Locator.
-//       Its Input property is deliberately ignored to avoid accidentally
-//       jumping back into the main pipeline.
-// -----------------------------------------------------------------------------
-void DumpProxy(vtkSMProxy* proxy, int indent, bool followPipelineInputs, std::ostringstream& out) {
-  if (!proxy) { return; }
+template <typename T> std::string VectorValue(T* property) {
+  const unsigned int n = property->GetNumberOfElements();
+  if (n == 1) {
+    std::ostringstream out;
+    out << property->GetElement(0);
+    return out.str();
+  }
 
-  const std::string pad(indent, ' ');
+  std::ostringstream out;
+  out << '[';
+  for (unsigned int i = 0; i < n; ++i) {
+    if (i) { out << ','; }
+    out << property->GetElement(i);
+  }
+  out << ']';
+  return out.str();
+}
 
-  const char* xmlGroup = proxy->GetXMLGroup();
-  const char* xmlName = proxy->GetXMLName();
+// Excludes properties that do not represent persistent user-facing proxy state.
+bool ShouldRecordProperty(vtkSMProperty* property) {
+  return property && !property->GetInformationOnly() && !property->GetIsInternal();
+}
 
-  out << pad << (xmlGroup ? xmlGroup : "(null)") << " / " << (xmlName ? xmlName : "(null)") << '\n';
+std::string StringVectorValue(vtkSMStringVectorProperty* property) {
+  const unsigned int n = property->GetNumberOfElements();
+  if (n == 1) {
+    const char* value = property->GetElement(0);
+    return value ? value : "";
+  }
 
-  vtkSMPropertyIterator* piter = proxy->NewPropertyIterator();
+  std::ostringstream out;
+  out << '[';
+  for (unsigned int i = 0; i < n; ++i) {
+    if (i) { out << ','; }
+    const char* value = property->GetElement(i);
+    out << JsonQuote(value ? value : "");
+  }
+  out << ']';
+  return out.str();
+}
 
-  if (!piter) { return; }
+// Recursively flattens one proxy. Pipeline inputs are followed as peers;
+// nested proxy properties are namespaced below their owning property.
+void CollectProxy(vtkSMProxy* proxy, const std::string& prefix, bool followInputs, std::map<std::string, int>& counters,
+                  std::set<vtkSMProxy*>& visited, AnnotationMap& result) {
+  if (!proxy || !visited.insert(proxy).second) { return; }
 
-  for (piter->Begin(); !piter->IsAtEnd(); piter->Next()) {
-    const char* key = piter->GetKey();
+  const std::string type = proxy->GetXMLName() ? proxy->GetXMLName() : proxy->GetClassName();
+  const std::string name = prefix.empty() ? type + std::to_string(counters[type]++) : prefix;
 
-    vtkSMProperty* property = piter->GetProperty();
+  vtkSMPropertyIterator* iter = proxy->NewPropertyIterator();
+  if (!iter) { return; }
 
-    if (!property) { continue; }
+  for (iter->Begin(); !iter->IsAtEnd(); iter->Next()) {
+    vtkSMProperty* property = iter->GetProperty();
+    const char* key = iter->GetKey();
+    if (!property || !key) { continue; }
 
-    // -------------------------------------------------------------------------
-    // Pipeline topology
-    // -------------------------------------------------------------------------
     if (auto* input = vtkSMInputProperty::SafeDownCast(property)) {
-      // Helper proxies sometimes expose Input properties as well. Those must
-      // not be interpreted as pipeline traversal.
-      if (!followPipelineInputs) { continue; }
-
-      out << pad << "  " << (key ? key : "Input") << " =" << '\n';
-
-      for (unsigned int i = 0; i < input->GetNumberOfProxies(); ++i) {
-        vtkSMProxy* upstream = input->GetProxy(i);
-
-        if (!upstream) { continue; }
-
-        DumpProxy(upstream, indent + 4, true, out);
+      if (followInputs) {
+        for (unsigned int i = 0; i < input->GetNumberOfProxies(); ++i) {
+          CollectProxy(input->GetProxy(i), "", true, counters, visited, result);
+        }
       }
-
       continue;
     }
 
-    // -------------------------------------------------------------------------
-    // Ordinary property or nested proxy property.
-    // -------------------------------------------------------------------------
-    DumpProperty(key ? key : "(unnamed)", property, indent + 2, out);
+    if (!ShouldRecordProperty(property)) { continue; }
+
+    const std::string column = name + "." + key;
+
+    if (auto* p = vtkSMIntVectorProperty::SafeDownCast(property)) {
+      result[column] = VectorValue(p);
+    } else if (auto* p = vtkSMDoubleVectorProperty::SafeDownCast(property)) {
+      result[column] = VectorValue(p);
+    } else if (auto* p = vtkSMStringVectorProperty::SafeDownCast(property)) {
+      result[column] = StringVectorValue(p);
+    } else if (auto* p = vtkSMProxyProperty::SafeDownCast(property)) {
+      for (unsigned int i = 0; i < p->GetNumberOfProxies(); ++i) {
+        const std::string child = column + std::to_string(i);
+        CollectProxy(p->GetProxy(i), child, false, counters, visited, result);
+      }
+    }
   }
 
-  piter->Delete();
+  iter->Delete();
 }
 
 } // namespace
 
-// -----------------------------------------------------------------------------
-// Public API.
-//
-// clientObject is normally:
-//
-//     this
-//
-// from CinemaWriter::RequestData().
-//
-// The function:
-//
-//   1. gets the active ParaView ServerManager session,
-//   2. finds the vtkSMSourceProxy whose client-side object equals clientObject,
-//   3. gets that proxy's "Input" property,
-//   4. recursively dumps all upstream pipeline proxies and their properties,
-//   5. returns the result as one string.
-// -----------------------------------------------------------------------------
-std::string ComputeInputTree(vtkObjectBase* clientObject) {
-  if (!clientObject) { return {}; }
+AnnotationMap ComputePipelineAnnotations(vtkSMProxy* writerProxy) {
+  AnnotationMap result;
+  if (!writerProxy) { return result; }
 
-  // ---------------------------------------------------------------------------
-  // Get the active ServerManager proxy manager.
-  // ---------------------------------------------------------------------------
-  vtkSMProxyManager* pxm = vtkSMProxyManager::GetProxyManager();
+  auto* input = vtkSMInputProperty::SafeDownCast(writerProxy->GetProperty("Input"));
+  if (!input) { return result; }
 
-  if (!pxm) { return {}; }
-
-  vtkSMSessionProxyManager* spxm = pxm->GetActiveSessionProxyManager();
-
-  if (!spxm) { return {}; }
-
-  // ---------------------------------------------------------------------------
-  // Find the ServerManager proxy corresponding to the supplied VTK object.
-  // ---------------------------------------------------------------------------
-  vtkSMSourceProxy* ownerProxy = nullptr;
-
-  vtkNew<vtkSMProxyIterator> iter;
-  iter->SetSessionProxyManager(spxm);
-
-  for (iter->Begin(); !iter->IsAtEnd(); iter->Next()) {
-    vtkSMSourceProxy* sourceProxy = vtkSMSourceProxy::SafeDownCast(iter->GetProxy());
-
-    if (!sourceProxy) { continue; }
-
-    vtkObjectBase* candidate = sourceProxy->GetClientSideObject();
-
-    if (candidate == clientObject) {
-      ownerProxy = sourceProxy;
-      break;
-    }
+  std::map<std::string, int> counters;
+  std::set<vtkSMProxy*> visited;
+  for (unsigned int i = 0; i < input->GetNumberOfProxies(); ++i) {
+    CollectProxy(input->GetProxy(i), "", true, counters, visited, result);
   }
-
-  if (!ownerProxy) { return {}; }
-
-  // ---------------------------------------------------------------------------
-  // Get the writer/filter's pipeline Input property.
-  // ---------------------------------------------------------------------------
-  vtkSMInputProperty* inputProperty = vtkSMInputProperty::SafeDownCast(ownerProxy->GetProperty("Input"));
-
-  if (!inputProperty) { return {}; }
-
-  // ---------------------------------------------------------------------------
-  // Serialize all direct inputs recursively.
-  // ---------------------------------------------------------------------------
-  std::ostringstream out;
-
-  for (unsigned int i = 0; i < inputProperty->GetNumberOfProxies(); ++i) {
-    vtkSMProxy* inputProxy = inputProperty->GetProxy(i);
-
-    if (!inputProxy) { continue; }
-
-    // Add a separator if there are multiple writer inputs.
-    if (i > 0) { out << '\n'; }
-
-    DumpProxy(inputProxy, 0, true, out);
-  }
-
-  return out.str();
+  return result;
 }

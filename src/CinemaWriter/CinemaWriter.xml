@@ -1,12 +1,10 @@
 <ServerManagerConfiguration>
   <ProxyGroup name="filters">
-    <SourceProxy name="CinemaWriter" class="CinemaWriter" label="Cinema Writer">
+    <CinemaWriterProxy name="CinemaWriter" class="CinemaWriter" label="Cinema Writer">
 
       <Documentation
-        long_help="CinemaWriter long"
-        short_help="CinemaWriter short">
-        CinemaWriter doc text
-      </Documentation>
+        long_help="Writes 2D Cinema image samples and a data.csv manifest. Pipeline provenance is captured from the client-side ServerManager graph immediately before execution, then synchronized to the writer so the same implementation works in built-in and client/server sessions."
+        short_help="Write 2D Cinema image samples with pipeline provenance." />
 
       <InputProperty
         name="Input"
@@ -36,17 +34,33 @@
         <Documentation>Store images as PyCinema HDF5 files or PNG images.</Documentation>
       </IntVectorProperty>
 
-      <IntVectorProperty name="CompressionLevel" command="SetCompressionLevel" number_of_elements="1" default_values="9">
+      <IntVectorProperty name="CompressionLevel" command="SetCompressionLevel" number_of_elements="1" default_values="5">
         <IntRangeDomain name="range" min="0" max="9" />
-        <Documentation>Determines the compression level form 0 (fast + large files) to 9 (slow + small files).</Documentation>
+        <Documentation>Determines the compression level from 0 (fast + large files) to 9 (slow + small files).</Documentation>
       </IntVectorProperty>
 
-      <Property name='Debug_Execute'
-        label='Write Images'
-        command='Modified'
-        panel_widget='command_button'>
+      <!--
+        Client/server provenance transport. vtkSMCinemaWriterProxy fills this
+        alternating key/value vector immediately before UpdatePipeline().
+        ServerManager first invokes ClearProvenance(), then invokes
+        AddProvenanceEntry(key, value) for every pair on the server-side
+        CinemaWriter instance.
+      -->
+      <StringVectorProperty
+        name="Provenance"
+        command="AddProvenanceEntry"
+        clean_command="ClearProvenance"
+        number_of_elements_per_command="2"
+        repeat_command="1"
+        panel_visibility="never"
+        is_internal="1" />
+
+      <Property name="Debug_Execute"
+        label="Write Images"
+        command="Modified"
+        panel_widget="command_button">
         <Documentation>
-          Write all input images to disk in the pycinema hdf5 format.
+          Write all input images to disk using the selected output format.
         </Documentation>
       </Property>
 
@@ -63,6 +77,6 @@
         <Visibility replace_input="0" />
       </Hints>
 
-    </SourceProxy>
+    </CinemaWriterProxy>
   </ProxyGroup>
 </ServerManagerConfiguration>

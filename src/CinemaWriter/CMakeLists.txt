@@ -1,4 +1,7 @@
-set(classes CinemaWriter)
+set(classes
+  CinemaWriter
+  vtkSMCinemaWriterProxy
+)
 
 vtk_module_add_module(CinemaWriter
   FORCE_STATIC
@@ -8,4 +11,4 @@ vtk_module_add_module(CinemaWriter
     PipelineAnnotation.cxx
 )
 
-paraview_add_server_manager_xmls( XMLS CinemaWriter.xml )
+paraview_add_server_manager_xmls(XMLS CinemaWriter.xml)

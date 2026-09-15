@@ -137,8 +137,7 @@ bool WriteArray(hid_t group, int compressionLevel, hid_t dataType, vtkDataArray*
   const char* arrayName = array->GetName();
 
   if (!arrayName || !*arrayName) {
-    std::cerr << "Skipping unnamed VTK array." << std::endl;
-
+    std::cerr << "Cannot export unnamed VTK array." << std::endl;
     return false;
   }
 
@@ -226,8 +225,8 @@ bool WriteSupportedArray(hid_t group, int compressionLevel, vtkDataArray* array,
 
 } // namespace
 
-int WriteImageHDF5(vtkImageData* image, const std::string& path, int compressionLevel) {
-  if (!image || path.empty()) { return 0; }
+bool WriteImageHDF5(vtkImageData* image, const std::string& path, int compressionLevel) {
+  if (!image || path.empty()) { return false; }
 
   int dims[3] = {0, 0, 0};
   image->GetDimensions(dims);
@@ -236,7 +235,7 @@ int WriteImageHDF5(vtkImageData* image, const std::string& path, int compression
     std::cerr << "Cannot write image with invalid dimensions: " << dims[0] << " x " << dims[1] << " x " << dims[2]
               << std::endl;
 
-    return 0;
+    return false;
   }
 
   compressionLevel = std::clamp(compressionLevel, 0, 9);
@@ -246,14 +245,14 @@ int WriteImageHDF5(vtkImageData* image, const std::string& path, int compression
   if (root < 0) {
     std::cerr << "Failed to create HDF5 file: " << path << std::endl;
 
-    return 0;
+    return false;
   }
 
   hid_t meta = H5Gcreate(root, "meta", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
 
   if (meta < 0) {
     H5Fclose(root);
-    return 0;
+    return false;
   }
 
   hid_t channels = H5Gcreate(root, "channels", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
@@ -261,7 +260,7 @@ int WriteImageHDF5(vtkImageData* image, const std::string& path, int compression
   if (channels < 0) {
     H5Gclose(meta);
     H5Fclose(root);
-    return 0;
+    return false;
   }
 
   bool success = true;
@@ -314,5 +313,5 @@ int WriteImageHDF5(vtkImageData* image, const std::string& path, int compression
   H5Gclose(meta);
   H5Fclose(root);
 
-  return success ? 1 : 0;
+  return success;
 }
