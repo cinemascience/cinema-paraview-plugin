@@ -1,4 +1,4 @@
-#include "PipelineAnnotation.h"
+#include "PipelineProvenance.h"
 
 #include <map>
 #include <set>
@@ -12,6 +12,7 @@
 #include <vtkSMProxy.h>
 #include <vtkSMProxyProperty.h>
 #include <vtkSMStringVectorProperty.h>
+#include <vtkSMViewProxy.h>
 
 namespace {
 
@@ -44,7 +45,6 @@ template <typename T> std::string VectorValue(T* property) {
   return out.str();
 }
 
-// Excludes properties that do not represent persistent user-facing proxy state.
 bool ShouldRecordProperty(vtkSMProperty* property) {
   return property && !property->GetInformationOnly() && !property->GetIsInternal();
 }
@@ -67,10 +67,14 @@ std::string StringVectorValue(vtkSMStringVectorProperty* property) {
   return out.str();
 }
 
-// Recursively flattens one proxy. Pipeline inputs are followed as peers;
-// nested proxy properties are namespaced below their owning property.
+bool IsVisibleRepresentation(vtkSMProxy* representation) {
+  if (!representation) { return false; }
+  auto* visibility = vtkSMIntVectorProperty::SafeDownCast(representation->GetProperty("Visibility"));
+  return !visibility || visibility->GetNumberOfElements() == 0 || visibility->GetElement(0) != 0;
+}
+
 void CollectProxy(vtkSMProxy* proxy, const std::string& prefix, bool followInputs, std::map<std::string, int>& counters,
-                  std::set<vtkSMProxy*>& visited, AnnotationMap& result) {
+                  std::set<vtkSMProxy*>& visited, ProvenanceMap& result) {
   if (!proxy || !visited.insert(proxy).second) { return; }
 
   const std::string type = proxy->GetXMLName() ? proxy->GetXMLName() : proxy->GetClassName();
@@ -96,7 +100,6 @@ void CollectProxy(vtkSMProxy* proxy, const std::string& prefix, bool followInput
     if (!ShouldRecordProperty(property)) { continue; }
 
     const std::string column = name + "." + key;
-
     if (auto* p = vtkSMIntVectorProperty::SafeDownCast(property)) {
       result[column] = VectorValue(p);
     } else if (auto* p = vtkSMDoubleVectorProperty::SafeDownCast(property)) {
@@ -105,8 +108,7 @@ void CollectProxy(vtkSMProxy* proxy, const std::string& prefix, bool followInput
       result[column] = StringVectorValue(p);
     } else if (auto* p = vtkSMProxyProperty::SafeDownCast(property)) {
       for (unsigned int i = 0; i < p->GetNumberOfProxies(); ++i) {
-        const std::string child = column + std::to_string(i);
-        CollectProxy(p->GetProxy(i), child, false, counters, visited, result);
+        CollectProxy(p->GetProxy(i), column + std::to_string(i), false, counters, visited, result);
       }
     }
   }
@@ -116,17 +118,67 @@ void CollectProxy(vtkSMProxy* proxy, const std::string& prefix, bool followInput
 
 } // namespace
 
-AnnotationMap ComputePipelineAnnotations(vtkSMProxy* writerProxy) {
-  AnnotationMap result;
-  if (!writerProxy) { return result; }
+std::vector<vtkSMProxy*> GetPipelineInputs(vtkSMProxy* proxy, const char* propertyName) {
+  std::vector<vtkSMProxy*> result;
+  if (!proxy || !propertyName) { return result; }
 
-  auto* input = vtkSMInputProperty::SafeDownCast(writerProxy->GetProperty("Input"));
+  auto* input = vtkSMInputProperty::SafeDownCast(proxy->GetProperty(propertyName));
   if (!input) { return result; }
 
-  std::map<std::string, int> counters;
-  std::set<vtkSMProxy*> visited;
+  result.reserve(input->GetNumberOfProxies());
   for (unsigned int i = 0; i < input->GetNumberOfProxies(); ++i) {
-    CollectProxy(input->GetProxy(i), "", true, counters, visited, result);
+    if (auto* upstream = input->GetProxy(i)) { result.push_back(upstream); }
   }
   return result;
+}
+
+std::vector<vtkSMProxy*> GetVisibleRepresentationInputs(vtkSMViewProxy* view) {
+  std::vector<vtkSMProxy*> result;
+  if (!view) { return result; }
+
+  auto* representations = vtkSMProxyProperty::SafeDownCast(view->GetProperty("Representations"));
+  if (!representations) { return result; }
+
+  std::set<vtkSMProxy*> unique;
+  for (unsigned int i = 0; i < representations->GetNumberOfProxies(); ++i) {
+    vtkSMProxy* representation = representations->GetProxy(i);
+    if (!IsVisibleRepresentation(representation)) { continue; }
+
+    auto* input = vtkSMInputProperty::SafeDownCast(representation->GetProperty("Input"));
+    if (!input) { continue; }
+    for (unsigned int j = 0; j < input->GetNumberOfProxies(); ++j) {
+      vtkSMProxy* source = input->GetProxy(j);
+      if (source && unique.insert(source).second) { result.push_back(source); }
+    }
+  }
+  return result;
+}
+
+ProvenanceMap ComputePipelineProvenance(vtkSMProxy* root) {
+  return ComputePipelineProvenance(std::vector<vtkSMProxy*>{root});
+}
+
+ProvenanceMap ComputePipelineProvenance(const std::vector<vtkSMProxy*>& roots) {
+  ProvenanceMap result;
+  std::map<std::string, int> counters;
+  std::set<vtkSMProxy*> visited;
+  for (vtkSMProxy* root : roots) { CollectProxy(root, "", true, counters, visited, result); }
+  return result;
+}
+
+ProvenanceMap ComputeVisibleRepresentationProvenance(vtkSMViewProxy* view,
+                                                     const std::vector<vtkSMProxy*>& additionalRoots) {
+  auto roots = GetVisibleRepresentationInputs(view);
+  roots.insert(roots.end(), additionalRoots.begin(), additionalRoots.end());
+  return ComputePipelineProvenance(roots);
+}
+
+void MergeProvenance(ProvenanceMap& destination, const ProvenanceMap& source, bool overwriteExisting) {
+  for (const auto& item : source) {
+    if (overwriteExisting) {
+      destination[item.first] = item.second;
+    } else {
+      destination.emplace(item.first, item.second);
+    }
+  }
 }

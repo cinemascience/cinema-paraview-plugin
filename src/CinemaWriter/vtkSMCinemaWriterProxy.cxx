@@ -1,6 +1,6 @@
 #include "vtkSMCinemaWriterProxy.h"
 
-#include "PipelineAnnotation.h"
+#include "PipelineProvenance.h"
 
 #include <vtkObjectFactory.h>
 #include <vtkSMStringVectorProperty.h>
@@ -14,7 +14,7 @@ void vtkSMCinemaWriterProxy::CaptureProvenance() {
     return;
   }
 
-  const AnnotationMap provenance = ComputePipelineAnnotations(this);
+  const ProvenanceMap provenance = ComputePipelineProvenance(GetPipelineInputs(this));
   property->SetNumberOfElements(static_cast<unsigned int>(2 * provenance.size()));
 
   unsigned int index = 0;
