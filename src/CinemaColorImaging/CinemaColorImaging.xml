@@ -1,42 +1,89 @@
 <ServerManagerConfiguration>
-  <ProxyGroup name="filters">
-    <SourceProxy name="CinemaColorImaging" class="CinemaColorImaging">
-      <Documentation
-        long_help="CinemaColorImaging long"
-        short_help="CinemaColorImaging short">
-        CinemaColorImaging doc text
-      </Documentation>
+  <ProxyGroup name="extract_writers">
+    <CinemaColorImagingExtractWriterProxy
+      name="CinemaColorImaging"
+      label="Cinema Color Imaging">
 
-      <!-- Inputs -->
-      <InputProperty name="Cameras" port_index="0" command="SetInputConnection">
-        <ProxyGroupDomain name="groups">
-          <Group name="sources" />
-          <Group name="filters" />
-        </ProxyGroupDomain>
+      <Documentation
+        long_help="Captures a selected RenderView from camera locations produced by a vtkPointSet pipeline and writes the images as a Cinema database. Camera point-data is copied to each image as field data."
+        short_help="Capture a selected RenderView along an arbitrary camera pipeline into a Cinema database." />
+
+      <!-- The camera producer is the extractor input. This lets ParaView wire
+           the extractor to the selected camera filter in the Pipeline Browser. -->
+      <InputProperty name="Input" multiple_input="0">
         <DataTypeDomain name="input_type">
           <DataType value="vtkPointSet" />
         </DataTypeDomain>
-        <Documentation>vtkPointSet that represents the cameras.</Documentation>
+        <Documentation>
+          vtkPointSet producer containing camera positions as points and at
+          least CameraUp and CameraDir point-data arrays. All numeric point-data
+          arrays are copied to the corresponding captured image as field data.
+        </Documentation>
       </InputProperty>
 
-      <IntVectorProperty name="Resolution" command="SetResolution" number_of_elements="2" default_values="512 512">
-        <Documentation>Image Resolution</Documentation>
+      <StringVectorProperty
+        name="View"
+        label="Render View"
+        number_of_elements="1">
+        <RenderViewNameDomain name="render_views" />
+        <Documentation>
+          Existing registered RenderView to capture. The active RenderView is
+          selected by default when the extractor is created.
+        </Documentation>
+      </StringVectorProperty>
+
+      <IntVectorProperty name="ProjectionMode" number_of_elements="1" default_values="1">
+        <EnumerationDomain name="enum">
+          <Entry value="0" text="Perspective" />
+          <Entry value="1" text="Orthographic" />
+        </EnumerationDomain>
+        <Documentation>
+          Projection used for captured images. Orthographic mode uses half of
+          the per-camera CameraHeight as VTK's CameraParallelScale.
+        </Documentation>
       </IntVectorProperty>
 
-      <Property name='Debug_Execute'
-        label='Render'
-        command='Modified'
-        panel_widget='command_button'>
+      <DoubleVectorProperty name="CameraAngle" number_of_elements="1" default_values="30">
+        <DoubleRangeDomain name="range" min="0.01" max="179.0" />
+        <Documentation>Vertical camera view angle in degrees for perspective projection.</Documentation>
+        <Hints>
+          <PropertyWidgetDecorator type="GenericDecorator" mode="visibility"
+            property="ProjectionMode" value="0" />
+        </Hints>
+      </DoubleVectorProperty>
+
+      <IntVectorProperty
+        name="ImageResolution"
+        number_of_elements="2"
+        default_values="512 512">
+        <IntRangeDomain name="range" min="1" />
+        <Documentation>Resolution used for each captured camera image.</Documentation>
+      </IntVectorProperty>
+
+      <StringVectorProperty
+        name="FileName"
+        number_of_elements="1"
+        default_values="{prefix}_{timestep:06d}.cdb">
         <Documentation>
-          Render all images.
+          Cinema database directory relative to the Extracts Output Directory.
         </Documentation>
-      </Property>
+      </StringVectorProperty>
+
+      <IntVectorProperty name="Format" number_of_elements="1" default_values="0">
+        <EnumerationDomain name="enum">
+          <Entry value="0" text="PyCinema HDF5" />
+          <Entry value="1" text="PNG Image" />
+        </EnumerationDomain>
+      </IntVectorProperty>
+
+      <IntVectorProperty name="CompressionLevel" number_of_elements="1" default_values="5">
+        <IntRangeDomain name="range" min="0" max="9" />
+      </IntVectorProperty>
 
       <Hints>
-        <RepresentationType view="RenderView" type="Outline" />
-        <ShowInMenu category="Cinema Export" />
+        <ShowInMenu category="Image" />
+        <Property name="Input" show="0" />
       </Hints>
-
-    </SourceProxy>
+    </CinemaColorImagingExtractWriterProxy>
   </ProxyGroup>
 </ServerManagerConfiguration>

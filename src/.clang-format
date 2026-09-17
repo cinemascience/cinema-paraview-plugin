@@ -1,0 +1,63 @@
+BasedOnStyle: LLVM
+
+# Compact layout
+IndentWidth: 2
+ContinuationIndentWidth: 2
+TabWidth: 2
+UseTab: Never
+ColumnLimit: 120
+
+# Braces
+BreakBeforeBraces: Attach
+
+# Allow compact one-liners
+AllowShortBlocksOnASingleLine: Always
+AllowShortFunctionsOnASingleLine: All
+AllowShortIfStatementsOnASingleLine: AllIfsAndElse
+AllowShortLoopsOnASingleLine: true
+AllowShortCaseLabelsOnASingleLine: true
+AllowShortLambdasOnASingleLine: All
+
+# Don't aggressively break arguments
+BinPackArguments: true
+BinPackParameters: true
+AllowAllArgumentsOnNextLine: true
+AllowAllParametersOfDeclarationOnNextLine: true
+
+# Keep simple expressions together
+BreakBeforeBinaryOperators: None
+BreakBeforeTernaryOperators: false
+
+# Pointers/references
+PointerAlignment: Left
+ReferenceAlignment: Pointer
+DerivePointerAlignment: false
+
+# Compact namespaces
+CompactNamespaces: true
+NamespaceIndentation: None
+
+# Don't add extra whitespace
+SpaceBeforeParens: ControlStatements
+SpaceAfterCStyleCast: false
+SpacesInParentheses: false
+SpacesInSquareBrackets: false
+SpaceBeforeAssignmentOperators: true
+
+# Initializers
+Cpp11BracedListStyle: true
+SpaceBeforeCpp11BracedList: false
+
+# Includes
+SortIncludes: CaseSensitive
+IncludeBlocks: Regroup
+
+# Keep empty things compact
+SpaceInEmptyBlock: false
+
+# Constructor initializer lists
+BreakConstructorInitializers: BeforeColon
+PackConstructorInitializers: BinPack
+
+# Comments
+ReflowComments: true

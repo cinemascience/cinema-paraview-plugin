@@ -1,8 +1,11 @@
 NAME
   CinemaColorImaging
 DEPENDS
-  CinemaAlgorithm
-  VTK::FiltersCore
+  CinemaWriter
+  ParaView::pqComponents
+  ParaView::RemotingServerManager
   ParaView::RemotingViews
 PRIVATE_DEPENDS
   VTK::CommonCore
+  VTK::CommonDataModel
+  VTK::RenderingCore

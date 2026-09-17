@@ -1,435 +1,477 @@
 #include "CinemaWriter.h"
 
-#include <vtkDataObject.h>
-#include <vtkObjectFactory.h>
-#include <vtkInformation.h>
-
-#include <vtkMultiBlockDataSet.h>
-#include <vtkImageData.h>
-#include <vtkDataArray.h>
-#include <vtkPointData.h>
-#include <vtkDirectory.h>
-
-#include <vtkPNGWriter.h>
+#include "H5Export.h"
 
 #include <algorithm>
-// #include <H5Cpp.h>
-#include <vtk_hdf5.h>
-#include <sstream>
+#include <cctype>
+#include <cstdint>
+#include <cstdio>
 #include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <map>
+#include <set>
+#include <sstream>
+#include <string>
+#include <vector>
+#include <vtkAbstractArray.h>
+#include <vtkDataArray.h>
+#include <vtkDataObject.h>
+#include <vtkDirectory.h>
+#include <vtkFieldData.h>
+#include <vtkImageData.h>
+#include <vtkInformation.h>
+#include <vtkInformationVector.h>
+#include <vtkMultiBlockDataSet.h>
+#include <vtkNew.h>
+#include <vtkObjectFactory.h>
+#include <vtkPNGWriter.h>
+#include <vtkPointData.h>
+#include <vtkStringArray.h>
 
 vtkStandardNewMacro(CinemaWriter);
 
-//----------------------------------------------------------------------------
-CinemaWriter::CinemaWriter(){
+namespace {
+
+using Row = std::map<std::string, std::string>;
+
+std::string JsonQuote(const std::string& value) {
+  std::ostringstream out;
+  out << '"';
+  for (char c : value) {
+    if (c == '"' || c == '\\') { out << '\\'; }
+    out << c;
+  }
+  out << '"';
+  return out.str();
+}
+
+// Converts a field-data array to one scalar or JSON-array CSV value.
+std::string FieldArrayValue(vtkAbstractArray* array) {
+  if (!array) { return {}; }
+
+  const vtkIdType tuples = array->GetNumberOfTuples();
+  const int components = array->GetNumberOfComponents();
+  const vtkIdType count = tuples * components;
+
+  if (auto* strings = vtkStringArray::SafeDownCast(array)) {
+    if (count == 1) { return strings->GetValue(0); }
+    std::ostringstream out;
+    out << '[';
+    for (vtkIdType i = 0; i < count; ++i) {
+      if (i) { out << ','; }
+      out << JsonQuote(strings->GetValue(i));
+    }
+    out << ']';
+    return out.str();
+  }
+
+  auto* data = vtkDataArray::SafeDownCast(array);
+  if (!data) { return {}; }
+
+  if (count == 1) {
+    std::ostringstream out;
+    out << std::setprecision(17) << data->GetComponent(0, 0);
+    return out.str();
+  }
+
+  // A single tuple is represented directly as a vector: [x,y,z].
+  if (tuples == 1) {
+    std::ostringstream out;
+    out << '[';
+    for (int component = 0; component < components; ++component) {
+      if (component) { out << ','; }
+      out << std::setprecision(17) << data->GetComponent(0, component);
+    }
+    out << ']';
+    return out.str();
+  }
+
+  std::ostringstream out;
+  out << '[';
+  for (vtkIdType tuple = 0; tuple < tuples; ++tuple) {
+    if (tuple) { out << ','; }
+    if (components > 1) { out << '['; }
+    for (int component = 0; component < components; ++component) {
+      if (component) { out << ','; }
+      out << std::setprecision(17) << data->GetComponent(tuple, component);
+    }
+    if (components > 1) { out << ']'; }
+  }
+  out << ']';
+  return out.str();
+}
+
+// Collects field data as manifest columns. Array names are used verbatim.
+Row CollectFieldAnnotations(vtkDataObject* object) {
+  Row row;
+  vtkFieldData* fieldData = object ? object->GetFieldData() : nullptr;
+  if (!fieldData) { return row; }
+
+  for (int i = 0; i < fieldData->GetNumberOfArrays(); ++i) {
+    vtkAbstractArray* array = fieldData->GetAbstractArray(i);
+    const char* name = array ? array->GetName() : nullptr;
+    if (name && *name) { row[name] = FieldArrayValue(array); }
+  }
+  return row;
+}
+
+// Computes a deterministic 64-bit FNV-1a hash from field-data names, types,
+// shapes and values. Only field data contributes to database identity.
+std::string FieldDataHash(vtkDataObject* object) {
+  vtkFieldData* fieldData = object ? object->GetFieldData() : nullptr;
+  std::vector<std::string> records;
+  if (fieldData) {
+    records.reserve(fieldData->GetNumberOfArrays());
+    for (int i = 0; i < fieldData->GetNumberOfArrays(); ++i) {
+      vtkAbstractArray* array = fieldData->GetAbstractArray(i);
+      if (!array) { continue; }
+
+      std::ostringstream record;
+      record << (array->GetName() ? array->GetName() : "") << '|' << array->GetDataType() << '|'
+             << array->GetNumberOfTuples() << '|' << array->GetNumberOfComponents() << '|' << FieldArrayValue(array);
+      records.push_back(record.str());
+    }
+  }
+
+  std::sort(records.begin(), records.end());
+
+  std::uint64_t hash = 14695981039346656037ull;
+  for (const std::string& record : records) {
+    for (unsigned char c : record) {
+      hash ^= c;
+      hash *= 1099511628211ull;
+    }
+    hash ^= static_cast<unsigned char>('\n');
+    hash *= 1099511628211ull;
+  }
+
+  std::ostringstream out;
+  out << std::hex << std::setw(16) << std::setfill('0') << hash;
+  return out.str();
+}
+
+// Recursively returns vtkImageData leaves from a vtkMultiBlockDataSet.
+void CollectImages(vtkDataObject* object, std::vector<vtkImageData*>& images) {
+  if (auto* image = vtkImageData::SafeDownCast(object)) {
+    images.push_back(image);
+    return;
+  }
+
+  auto* blocks = vtkMultiBlockDataSet::SafeDownCast(object);
+  if (!blocks) {
+    if (object) { std::cerr << "CinemaWriter: skipping non-image input " << object->GetClassName() << std::endl; }
+    return;
+  }
+
+  for (unsigned int i = 0; i < blocks->GetNumberOfBlocks(); ++i) { CollectImages(blocks->GetBlock(i), images); }
+}
+
+bool WriteImagePNG(vtkImageData* image, const std::string& path, int compressionLevel) {
+  if (!image || path.empty()) { return false; }
+
+  vtkPointData* pointData = image->GetPointData();
+  if (!pointData) {
+    std::cerr << "CinemaWriter: PNG export requires point data." << std::endl;
+    return false;
+  }
+
+  vtkDataArray* colorArray = nullptr;
+  for (int i = 0; i < pointData->GetNumberOfArrays(); ++i) {
+    vtkDataArray* array = pointData->GetArray(i);
+    const char* name = array ? array->GetName() : nullptr;
+    if (!array || !name) { continue; }
+
+    std::string lowerName(name);
+    std::transform(lowerName.begin(), lowerName.end(), lowerName.begin(),
+                   [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+    const int expectedComponents = lowerName == "rgb" ? 3 : (lowerName == "rgba" ? 4 : 0);
+    const int dataType = array->GetDataType();
+    const bool supportedType = dataType == VTK_UNSIGNED_CHAR || dataType == VTK_UNSIGNED_SHORT;
+    if (expectedComponents > 0 && array->GetNumberOfComponents() == expectedComponents && supportedType) {
+      colorArray = array;
+      break;
+    }
+  }
+
+  if (!colorArray) {
+    std::cerr << "CinemaWriter: PNG export requires an RGB or RGBA point-data array." << std::endl;
+    return false;
+  }
+
+  vtkNew<vtkImageData> pngImage;
+  pngImage->ShallowCopy(image);
+  pngImage->GetPointData()->SetScalars(colorArray);
+
+  vtkNew<vtkPNGWriter> writer;
+  writer->SetFileName(path.c_str());
+  writer->SetCompressionLevel(std::clamp(compressionLevel, 0, 9));
+  writer->SetInputData(pngImage);
+  writer->Write();
+
+  return writer->GetErrorCode() == 0;
+}
+
+std::string CsvEscape(const std::string& value) {
+  if (value.find_first_of(",\"\r\n") == std::string::npos) { return value; }
+  std::string escaped = "\"";
+  for (char c : value) {
+    if (c == '"') { escaped += '"'; }
+    escaped += c;
+  }
+  return escaped + '"';
+}
+
+// Reads one RFC4180-style CSV record, including quoted values containing
+// embedded newlines.
+bool ReadCsvRow(std::istream& input, std::vector<std::string>& values) {
+  values.clear();
+  std::string value;
+  bool quoted = false;
+  bool readAnything = false;
+
+  for (char c; input.get(c);) {
+    readAnything = true;
+    if (quoted && c == '"') {
+      if (input.peek() == '"') {
+        input.get(c);
+        value += '"';
+      } else {
+        quoted = false;
+      }
+    } else if (c == '"' && value.empty()) {
+      quoted = true;
+    } else if (c == ',' && !quoted) {
+      values.push_back(value);
+      value.clear();
+    } else if ((c == '\n' || c == '\r') && !quoted) {
+      if (c == '\r' && input.peek() == '\n') { input.get(c); }
+      values.push_back(value);
+      return true;
+    } else {
+      value += c;
+    }
+  }
+
+  if (!readAnything) { return false; }
+  values.push_back(value);
+  return true;
+}
+
+void ReadManifest(const std::string& path, std::vector<std::string>& columns, std::vector<Row>& rows) {
+  std::ifstream file(path, std::ios::binary);
+  if (!file || !ReadCsvRow(file, columns)) { return; }
+
+  std::vector<std::string> values;
+  while (ReadCsvRow(file, values)) {
+    Row row;
+    for (std::size_t i = 0; i < columns.size() && i < values.size(); ++i) { row[columns[i]] = values[i]; }
+    rows.push_back(std::move(row));
+  }
+}
+
+// Rewrites data.csv with the union of old and new columns. FILE and hash are
+// kept first; rows sharing hash are replaced.
+bool UpdateManifest(const std::string& path, const std::vector<Row>& newRows) {
+  const std::string backup = path + ".bak";
+
+  // Recover an interrupted replacement before reading the current manifest.
+  std::ifstream current(path);
+  const bool hasCurrent = current.good();
+  current.close();
+  if (!hasCurrent) {
+    std::ifstream saved(backup);
+    const bool hasBackup = saved.good();
+    saved.close();
+    if (hasBackup && std::rename(backup.c_str(), path.c_str()) != 0) { return false; }
+  }
+
+  std::vector<std::string> columns;
+  std::vector<Row> rows;
+  ReadManifest(path, columns, rows);
+
+  std::set<std::string> allColumns(columns.begin(), columns.end());
+  for (const Row& row : newRows)
+    for (const auto& item : row) { allColumns.insert(item.first); }
+
+  columns.clear();
+  columns.push_back("FILE");
+  columns.push_back("hash");
+  allColumns.erase("FILE");
+  allColumns.erase("hash");
+  columns.insert(columns.end(), allColumns.begin(), allColumns.end());
+
+  for (const Row& incoming : newRows) {
+    const auto idIt = incoming.find("hash");
+    auto existing = rows.end();
+    if (idIt != incoming.end()) {
+      existing = std::find_if(rows.begin(), rows.end(), [&](const Row& row) {
+        auto it = row.find("hash");
+        return it != row.end() && it->second == idIt->second;
+      });
+    }
+    if (existing == rows.end()) {
+      rows.push_back(incoming);
+    } else {
+      *existing = incoming;
+    }
+  }
+
+  const std::string temp = path + ".tmp";
+  std::ofstream file(temp, std::ios::trunc);
+  if (!file) { return false; }
+
+  for (std::size_t i = 0; i < columns.size(); ++i) {
+    if (i) { file << ','; }
+    file << CsvEscape(columns[i]);
+  }
+  file << '\n';
+
+  for (const Row& row : rows) {
+    for (std::size_t i = 0; i < columns.size(); ++i) {
+      if (i) { file << ','; }
+      auto it = row.find(columns[i]);
+      if (it != row.end()) { file << CsvEscape(it->second); }
+    }
+    file << '\n';
+  }
+  file.close();
+  if (!file) { return false; }
+
+  // Replace the manifest without deleting the last known-good copy first.
+  // The backup makes replacement safe on platforms where rename() cannot
+  // overwrite an existing file.
+  std::remove(backup.c_str());
+
+  std::ifstream existing(path);
+  const bool hadExisting = existing.good();
+  existing.close();
+
+  if (hadExisting && std::rename(path.c_str(), backup.c_str()) != 0) {
+    std::remove(temp.c_str());
+    return false;
+  }
+
+  if (std::rename(temp.c_str(), path.c_str()) != 0) {
+    if (hadExisting) { std::rename(backup.c_str(), path.c_str()); }
+    std::remove(temp.c_str());
+    return false;
+  }
+
+  if (hadExisting) { std::remove(backup.c_str()); }
+  return true;
+}
+
+} // namespace
+
+CinemaWriter::CinemaWriter() {
   this->SetNumberOfInputPorts(1);
   this->SetNumberOfOutputPorts(1);
-};
+}
+
 CinemaWriter::~CinemaWriter() = default;
 
-int CinemaWriter::FillInputPortInformation(int port, vtkInformation *info) {
-  if(port == 0) {
-    info->Set(vtkAlgorithm::INPUT_REQUIRED_DATA_TYPE(), "vtkDataObject");
-    return 1;
-  }
-  return 0;
-};
+void CinemaWriter::ClearProvenance() { this->Provenance.clear(); }
 
-int CinemaWriter::FillOutputPortInformation(int port, vtkInformation *info) {
-  if(port == 0) {
-    info->Set(CinemaAlgorithm::SAME_DATA_TYPE_AS_INPUT_PORT(), 0);
-    return 1;
-  }
-  return 0;
-};
+void CinemaWriter::AddProvenanceEntry(const char* key, const char* value) {
+  if (!key || !*key) { return; }
+  this->Provenance[key] = value ? value : "";
+}
 
-int addH5DataSet(const hid_t& group, const std::string& name, const hsize_t dim[3], const void* data, const hsize_t data_type, const int compression){
-
-  hsize_t DIM = dim[1]==0 && dim[2]==0
-    ? 1
-    : dim[2]==0
-      ? 2
-      : 3;
-  const hid_t dataspace = H5Screate_simple(DIM, dim, NULL);
-  const hid_t plist = H5Pcreate(H5P_DATASET_CREATE);
-  hsize_t cdims[3]{
-    256<dim[0] ? 256 : dim[0],
-    32<dim[1] ? 32 : dim[1],
-    dim[2]
-  };
-  H5Pset_chunk(plist, DIM, cdims);
-  H5Pset_deflate(plist, compression);
-
-  const hid_t dataset = H5Dcreate(
-    group,
-    name.data(),
-    data_type,
-    dataspace,
-    H5P_DEFAULT,
-    plist,
-    H5P_DEFAULT
-  );
-
-  H5Dwrite(dataset, data_type, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
-
-  H5Dclose(dataset);
-  H5Sclose(dataspace);
-  H5Pclose(plist);
-
+int CinemaWriter::FillInputPortInformation(int port, vtkInformation* info) {
+  if (port != 0) { return 0; }
+  info->Set(vtkAlgorithm::INPUT_REQUIRED_DATA_TYPE(), "vtkDataObject");
   return 1;
 }
 
-template <typename DT>
-int writeArray(const hid_t group, const int compressionLevel, const hid_t data_type, vtkDataArray* array, hsize_t resX=0, hsize_t resY=0){
-
-  int nTuples = array->GetNumberOfTuples();
-  int nComponents = array->GetNumberOfComponents();
-  if(nTuples<1)
-    return 0;
-
-  if(resX>0){
-    hsize_t s[3]{resY,resX,(hsize_t)nComponents};
-    const auto data_ = static_cast<DT*>(array->GetVoidPointer(0));
-    std::vector<DT> data(resX*resY*nComponents);
-    for(int y=0;y<resY; y++){
-      for(int x=0;x<resX; x++){
-        const auto i_idx = y*resX + x;
-        const auto o_idx = (resY-1-y)*resX + x;
-        for(int cIdx=0; cIdx<nComponents; cIdx++){
-          data[o_idx*nComponents+cIdx] = data_[i_idx*nComponents+cIdx];
-        }
-      }
-    }
-    return addH5DataSet(group,array->GetName(),s,data.data(),data_type,compressionLevel);
-  } else {
-    hsize_t s[3]{(hsize_t)nTuples,(hsize_t)(nComponents<2?0:nComponents),0};
-    const auto data = static_cast<DT*>(array->GetVoidPointer(0));
-    return addH5DataSet(group,array->GetName(),s,data,data_type,compressionLevel);
-  }
-};
-
-int writeImage(vtkImageData* image, const std::string path, const int compressionLevel){
-
-  const hid_t root = H5Fcreate(path.data(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-  const hid_t meta = H5Gcreate(root, "meta", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-  const hid_t channels = H5Gcreate(root, "channels", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-
-  int dims[3];
-  image->GetDimensions(dims);
-
-  // write resolution
-  {
-    hsize_t s[3]{2,0,0};
-    float data[2]{(float)dims[0],(float)dims[1]};
-    addH5DataSet(meta,"resolution",s,data,H5T_NATIVE_FLOAT,0);
-  }
-
-  // // write offset (here always defaults to 0,0)
-  // {
-  //   hsize_t s[3]{2,1,1};
-  //   float data[2]{0,0};
-  //   addH5DataSet(meta,"offset",s,data,0);
-  // }
-
-  // write meta
-  {
-    auto arrays = image->GetFieldData();
-    for(int i=0; i<arrays->GetNumberOfArrays(); i++){
-      auto array = arrays->GetArray(i);
-      if(!array)
-        continue;
-      switch(array->GetDataType()){
-        case VTK_FLOAT:
-          writeArray<float>(meta,compressionLevel,H5T_NATIVE_FLOAT,array);
-          break;
-        default:
-          std::cout<<"Unsupported Data Type: "<<array->GetName()<<std::endl;
-      }
-    }
-  }
-
-  // write channels
-  {
-    auto arrays = image->GetPointData();
-    for(int i=0; i<arrays->GetNumberOfArrays(); i++){
-      auto array = arrays->GetArray(i);
-      if(!array)
-        continue;
-      switch(array->GetDataType()){
-        case VTK_FLOAT:
-          writeArray<float>(channels,compressionLevel,H5T_NATIVE_FLOAT,array,dims[0],dims[1]);
-          break;
-        case VTK_UNSIGNED_CHAR:
-          writeArray<uint8_t>(channels,compressionLevel,H5T_NATIVE_UCHAR,array,dims[0],dims[1]);
-          break;
-        default:
-          std::cout<<"Unsupported Data Type: "<<array->GetName()<<std::endl;
-      }
-    }
-  }
-
-    // // write channels
-    // {
-    //   auto arrays = image->GetPointData();
-    //   for(int i=0; i<arrays->GetNumberOfArrays(); i++){
-    //     auto array = arrays->GetArray(i);
-    //     if(!array)
-    //       continue;
-    //     int nTuples = array->GetNumberOfTuples();
-    //     int nComponents = array->GetNumberOfComponents();
-    //     if(nTuples<1)
-    //       continue;
-    //     std::vector<float> data(nTuples*nComponents);
-    //     std::vector<double> rawData(nComponents);
-
-    //     for(int y=0;y<dims[1]; y++){
-    //       for(int x=0;x<dims[0]; x++){
-    //         const auto i_idx = y*dims[0] + x;
-    //         const auto o_idx = (dims[1]-1-y)*dims[0] + x;
-    //         array->GetTuple(i_idx,rawData.data());
-    //         for(int cIdx=0; cIdx<nComponents; cIdx++){
-    //           data[o_idx*nComponents+cIdx] = static_cast<float>(rawData[cIdx]);
-    //         }
-    //       }
-    //     }
-
-    //     // for(int tIdx=0; tIdx<nTuples; tIdx++){
-    //       // array->GetTuple(tIdx,rawData.data());
-    //       // const auto target = nTuples-tIdx-1;
-    //       // for(int cIdx=0; cIdx<nComponents; cIdx++){
-    //       //   data[target*nComponents+cIdx] = static_cast<float>(rawData[cIdx]);
-    //       // }
-    //     // }
-    //     hsize_t s[3]{(hsize_t)dims[1],(hsize_t)dims[0],(hsize_t)nComponents};
-    //     addH5DataSet(channels,array->GetName(),s,data.data(),H5T_NATIVE_FLOAT,compressionLevel);
-    //   }
-    // }
-  // }
-
-  H5Gclose(meta);
-  H5Gclose(channels);
-  H5Fclose(root);
-
-  return 1;
-};
-
-std::string getHashFromFieldData(vtkFieldData* fieldData){
-  const size_t nArrays = fieldData->GetNumberOfArrays();
-  std::vector<std::string> arrays(nArrays);
-  for(size_t a=0; a<nArrays; a++){
-    arrays[a] = std::string(fieldData->GetAbstractArray(a)->GetName());
-  }
-  std::sort(arrays.begin(),arrays.end());
-
-  std::string hash_string = "";
-  for(size_t a=0; a<nArrays; a++){
-    auto array = fieldData->GetAbstractArray(arrays[a].data());
-    const size_t nTuples = array->GetNumberOfTuples();
-    const size_t nComponents = array->GetNumberOfComponents();
-    const size_t nValues = nTuples*nComponents;
-    for(size_t i=0; i<nValues; i++){
-      hash_string += array->GetVariantValue(i).ToString();
-    }
-  }
-  return std::to_string(std::hash<std::string>{}(hash_string));
-};
-
-int ensureDirectoryExists(const std::string &path) {
-  auto directory = vtkSmartPointer<vtkDirectory>::New();
-  if(directory->Open(path.data()) == 1 || vtkDirectory::MakeDirectory(path.data()) == 1)
-    return 1;
-  else
-    return 0;
-};
-
-int validateOutputDirectoryPath(const std::string &path) {
-  if(path.length() < 4 || path.substr(path.length() - 4, 4).compare(".cdb")!= 0) {
-    CinemaAlgorithm::printErr("Output directory must have .cdb suffix");
-    return 0;
-  }
+int CinemaWriter::FillOutputPortInformation(int port, vtkInformation* info) {
+  if (port != 0) { return 0; }
+  info->Set(CinemaAlgorithm::SAME_DATA_TYPE_AS_INPUT_PORT(), 0);
   return 1;
 }
 
-int getHeader(std::map<std::string,int>& header, const std::string path){
-  const size_t MAX_NAME_LENGTH = 100;
-  char obj_name[MAX_NAME_LENGTH];
-  int h=0;
-  const hid_t root = H5Fopen(path.data(), H5F_ACC_RDONLY, H5P_DEFAULT);
-  if (root < 0) {
-    fprintf(stderr, "Failed to open file\n");
+// Captures every image leaf as one database/CSV row and passes the input through.
+int CinemaWriter::RequestData(vtkInformation*, vtkInformationVector** inputVector, vtkInformationVector* outputVector) {
+  vtkDataObject* input = vtkDataObject::GetData(inputVector[0], 0);
+  vtkDataObject* output = vtkDataObject::GetData(outputVector, 0);
+  if (!input || !output || this->OutputDirectory.empty()) { return 0; }
+
+  if (!vtkDirectory::MakeDirectory(this->OutputDirectory.c_str())) {
+    std::cerr << "CinemaWriter: cannot create output directory " << this->OutputDirectory << std::endl;
     return 0;
   }
 
-  const hid_t meta = H5Gopen(root, "/meta", H5P_DEFAULT);
-  if (meta < 0) {
-    fprintf(stderr, "Failed to open group\n");
-    H5Fclose(root);
-    return 0;
-  }
+  std::vector<vtkImageData*> images;
+  CollectImages(input, images);
 
-  hsize_t nMeta;
-  H5Gget_num_objs(meta,&nMeta);
-  for(hsize_t m=0; m<nMeta; m++){
+  std::vector<Row> rows;
+  std::set<std::string> fieldDataColumns;
+  std::size_t newFiles = 0;
+  std::size_t replacedFiles = 0;
+  for (vtkImageData* image : images) {
+    Row row = CollectFieldAnnotations(image);
+    for (const auto& item : row) { fieldDataColumns.insert(item.first); }
+    const std::string id = FieldDataHash(image);
+    const bool writePNG = this->Format == 1;
+    const std::string fileName = id + (writePNG ? ".png" : ".h5");
+    const std::string path = this->OutputDirectory + "/" + fileName;
+    std::ifstream existingFile(path, std::ios::binary);
+    const bool replacingFile = existingFile.good();
 
-    // const auto name = meta.getObjnameByIdx(m);
-    H5Gget_objname_by_idx(meta, m, obj_name, MAX_NAME_LENGTH);
-    const std::string name(obj_name);
-
-    const hid_t dataset = H5Dopen(root, ("/meta/"+name).data(), H5P_DEFAULT);
-    const hid_t space = H5Dget_space(dataset);
-    const int rank = H5Sget_simple_extent_ndims(space);
-
-    hsize_t dims[3];
-    H5Sget_simple_extent_dims(space, dims, NULL);
-
-    if(dims[0]!=1 || name.find("Cam") != std::string::npos)
-      continue;
-
-    header.emplace(name,h++);
-  }
-
-  return 1;
-}
-
-int getValues(std::vector<std::string>& row, const std::map<std::string,int>& header, const std::string path){
-
-  const size_t MAX_NAME_LENGTH = 100;
-  char obj_name[MAX_NAME_LENGTH];
-  int h=0;
-  const hid_t root = H5Fopen(path.data(), H5F_ACC_RDONLY, H5P_DEFAULT);
-  if (root < 0) {
-    fprintf(stderr, "Failed to open file\n");
-    return 0;
-  }
-  const hid_t meta = H5Gopen(root, "/meta", H5P_DEFAULT);
-  if (meta < 0) {
-    fprintf(stderr, "Failed to open group\n");
-    H5Fclose(root);
-    return 0;
-  }
-
-  for(const auto& h: header){
-    const hid_t dataset = H5Dopen(root, ("/meta/"+h.first).data(), H5P_DEFAULT);
-    float buf;
-    H5Dread(dataset, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, &buf);
-    std::stringstream value;
-    value<<buf;
-    row.push_back(value.str());
-  }
-
-  return 1;
-}
-
-int CinemaWriter::CreateDataCSV() const {
-  if(!validateOutputDirectoryPath(this->OutputDirectory)) return 0;
-
-  vtkNew<vtkDirectory> dir;
-  dir->Open(this->OutputDirectory.data());
-
-  const size_t nFiles = dir->GetNumberOfFiles();
-  size_t nH5Files = 0;
-
-  // header
-  std::map<std::string,int> header;
-  for(size_t f=0; f<nFiles; f++){
-    const auto path = std::string(dir->GetFile(f));
-    if(path.length() < 3 || path.substr(path.length() - 3, 3).compare(".h5")!= 0)
-      continue;
-
-    nH5Files++;
-    if(!header.size())
-      if(!getHeader(header,this->OutputDirectory+'/'+path)) return 0;
-  }
-
-  // values
-  std::vector<std::vector<std::string>> values(nH5Files);
-  for(size_t f=0, h5f=0; f<nFiles; f++){
-    const auto path = std::string(dir->GetFile(f));
-    if(path.length() < 3 || path.substr(path.length() - 3, 3).compare(".h5")!= 0)
-      continue;
-
-    auto& row = values[h5f++];
-    if(!getValues(row,header,this->OutputDirectory+'/'+path)) return 0;
-    row.push_back(path);
-  }
-
-  // write file
-  {
-    const std::string csvPath = this->OutputDirectory+"/data.csv";
-    std::ofstream csvFile;
-    csvFile.open(csvPath.data());
-    if(!csvFile.is_open()) {
-      CinemaAlgorithm::printErr("Unable to create 'data.csv' file.");
-      return 0;
-    }
-    for(const auto& h: header)
-      csvFile << h.first << ",";
-    csvFile << "FILE\n";
-
-    for(const auto& row: values){
-      std::string row_;
-      for(const auto& v: row)
-        row_ += v + ",";
-      row_.pop_back();
-      csvFile << row_ << "\n";
-    }
-    csvFile.close();
-  }
-
-  return 1;
-};
-
-int CinemaWriter::DeleteDatabase() const {
-  if(!validateOutputDirectoryPath(this->OutputDirectory)) return 0;
-  return vtkDirectory::DeleteDirectory(this->OutputDirectory.data());
-};
-
-int CinemaWriter::RequestData(vtkInformation *request,
-                 vtkInformationVector **inputVector,
-                 vtkInformationVector *outputVector){
-
-  auto input = vtkDataObject::GetData(inputVector[0]);
-
-  vtkNew<vtkMultiBlockDataSet> inputAsMB;
-  if(input->IsA("vtkMultiBlockDataSet")){
-    inputAsMB->ShallowCopy(input);
-  } else if(input->IsA("vtkImageData")) {
-    inputAsMB->SetBlock(0,input);
-  } else {
-    CinemaAlgorithm::printErr("CinemaWriter only processes vtkMultiBlockDataSets that contain vtkImageData");
-    return 0;
-  }
-
-  if(!validateOutputDirectoryPath(this->OutputDirectory)) return 0;
-  if(!ensureDirectoryExists(this->OutputDirectory)) return 0;
-
-  vtkNew<vtkPNGWriter> pngWriter;
-  pngWriter->SetCompressionLevel(this->CompressionLevel);
-
-  const size_t nImages = inputAsMB->GetNumberOfBlocks();
-  this->printMsg("# Writer ("+std::to_string(nImages)+" images)");
-  for(size_t i=0; i<nImages; i++){
-    auto image = vtkImageData::SafeDownCast(inputAsMB->GetBlock(i));
-    if(!image){
-      CinemaAlgorithm::printErr("Writer only processes vtkMultiBlockDataSets that contain vtkImageData");
-      continue;
-    }
-
-    const std::string image_hash = getHashFromFieldData(image->GetFieldData());
-
-    if(this->Format==0){
-      const std::string path = this->OutputDirectory + "/" + image_hash + ".h5";
-      if(!writeImage(image,path,this->CompressionLevel))return 0;
+    const bool writeSuccess = writePNG ? WriteImagePNG(image, path, this->CompressionLevel) :
+                                         WriteImageHDF5(image, path, this->CompressionLevel);
+    if (!writeSuccess) { return 0; }
+    if (replacingFile) {
+      ++replacedFiles;
     } else {
-      const std::string path = this->OutputDirectory + "/" + image_hash + ".png";
-      pngWriter->SetInputData(image);
-      pngWriter->SetFileName(path.c_str());
-      pngWriter->Write();
+      ++newFiles;
     }
+
+    for (const auto& item : this->Provenance) { row[item.first] = item.second; }
+    row["FILE"] = fileName;
+    row["hash"] = id;
+    rows.push_back(std::move(row));
   }
 
-  auto output = vtkDataObject::GetData(outputVector);
+  if (!UpdateManifest(this->OutputDirectory + "/data.csv", rows)) { return 0; }
+
   output->ShallowCopy(input);
+  std::cout << "# Writer (" << newFiles << " new files, " << replacedFiles << " replaced files, "
+            << fieldDataColumns.size() << " field data columns, " << this->Provenance.size() << " provenance columns)"
+            << std::endl;
+  return 1;
+}
+
+// Creates an empty manifest if no manifest exists yet.
+int CinemaWriter::CreateDataCSV() const {
+  if (this->OutputDirectory.empty()) { return 0; }
+  if (!vtkDirectory::MakeDirectory(this->OutputDirectory.c_str())) { return 0; }
+
+  const std::string path = this->OutputDirectory + "/data.csv";
+  std::ifstream existing(path);
+  if (existing.good()) { return 1; }
+  return UpdateManifest(path, {}) ? 1 : 0;
+}
+
+// Deletes the complete database contents and recreates the output directory.
+int CinemaWriter::DeleteDatabase() const {
+  if (this->OutputDirectory.empty()) { return 0; }
+
+  vtkNew<vtkDirectory> directory;
+  if (!directory->Open(this->OutputDirectory.c_str())) {
+    // A missing directory is already an empty database.
+    return vtkDirectory::MakeDirectory(this->OutputDirectory.c_str()) ? 1 : 0;
+  }
+
+  if (!vtkDirectory::DeleteDirectory(this->OutputDirectory.c_str())) {
+    std::cerr << "CinemaWriter: failed to delete output directory " << this->OutputDirectory << std::endl;
+    return 0;
+  }
+
+  if (!vtkDirectory::MakeDirectory(this->OutputDirectory.c_str())) {
+    std::cerr << "CinemaWriter: failed to recreate output directory " << this->OutputDirectory << std::endl;
+    return 0;
+  }
 
   return 1;
-};
+}

@@ -2,7 +2,8 @@ NAME
   CinemaWriter
 DEPENDS
   CinemaAlgorithm
-  VTK::FiltersCore
+  ParaView::RemotingServerManager
+  VTK::IOImage
 PRIVATE_DEPENDS
   VTK::CommonCore
   VTK::CommonSystem

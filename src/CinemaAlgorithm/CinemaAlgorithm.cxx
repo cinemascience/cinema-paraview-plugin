@@ -171,7 +171,7 @@ int CinemaAlgorithm::ProcessRequest(vtkInformation *request,
     return this->RequestData(request, inputVector, outputVector);
   }
 
-  request->Print(cout);
+  // request->Print(std::cout);
 
   return 0;
 };
